@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { z } from "zod";
 
 export const CATEGORIES = ["single_table", "joins", "aggregation", "name_ambiguity", "trends"] as const;
@@ -24,7 +25,8 @@ const QuestionSchema = z.object({
 
 export type EvalQuestion = z.infer<typeof QuestionSchema>;
 
-export const QUESTIONS_PATH = "evals/questions.jsonl";
+// Statically scoped so Next.js output tracing includes only this file, not the whole project.
+export const QUESTIONS_PATH = join(process.cwd(), "evals", "questions.jsonl");
 
 export function loadQuestions(path = QUESTIONS_PATH): EvalQuestion[] {
   const lines = readFileSync(path, "utf8").split("\n");
