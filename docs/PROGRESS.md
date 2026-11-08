@@ -47,3 +47,5 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | 39 | 2026-11-07 20:38 | Eval report + run-all (R9 fallback) | `523487d` | pnpm eval:report fills README table; pnpm eval:all runs v1-v4 |
 | 40 | 2026-11-07 20:39 | README | `9070cfb` | architecture diagram, setup, deploy, MCP config, evals guide, results markers |
 | 41 | 2026-11-07 20:41 | stdio MCP test | `7dd0bc3` | real child process over pipes; v3 tools; search_titles('heat') → tt0113277 |
+| 42 | 2026-11-07 20:41 | Rate limit + spend cap tests (R8) | `60b22dd` | 61/61 tests passing locally |
+| 43 | 2026-11-07 20:42 | Pool error handlers | `b8ef5b6` | prevents process crash when Neon drops idle connections |

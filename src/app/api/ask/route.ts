@@ -66,18 +66,34 @@ export async function POST(req: Request) {
   }
 
   const encoder = new TextEncoder();
+  // If the browser goes away mid-answer, keep running so the cost is still
+  // recorded against the spend cap; just stop writing to the stream.
+  let open = true;
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (event: AgentEvent) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      const write = (payload: unknown) => {
+        if (!open) return;
+        try {
+          controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`));
+        } catch {
+          open = false;
+        }
+      };
       try {
-        const result = await runAgent({ question, version, onEvent: send });
+        const result = await runAgent({ question, version, onEvent: (event: AgentEvent) => write(event) });
         await finalize(admit.requestId, result);
       } catch (err) {
         console.error("agent crashed", err);
-        controller.enqueue(encoder.encode(`${JSON.stringify({ type: "error", error: "Something went wrong." })}\n`));
+        write({ type: "error", error: "Something went wrong. Try asking again." });
       } finally {
-        controller.close();
+        if (open) {
+          open = false;
+          controller.close();
+        }
       }
+    },
+    cancel() {
+      open = false;
     },
   });
   return new Response(stream, {
