@@ -4,6 +4,25 @@ Every block of work, when it landed, and the commit that holds it. Newest at the
 
 Open questions and blockers for Logan live in the [questions doc](https://claude.ai/artifact/EQNojRrp4Kaq7LRE2TrECB).
 
+## Status against the PRD (as of 2026-11-07)
+
+| Req | What | Status |
+|---|---|---|
+| R1 | Loader: download, filter 1,000+ votes, load with indexes | Done. Full load verified (49,466 movies / 330,144 people / 983,681 credits) |
+| R2 | MCP server: schema, fuzzy search, read-only SQL | Done; in-process + stdio, tested |
+| R3 | Agent: ≤ 8 tool calls, answer + SQL + rows + chart | Done; loop tested with a scripted model. Needs API key for real runs (B2) |
+| R4 | Ask page: box, 5 examples, answer, chart, SQL | Done; prod build verified |
+| R5 | Eval runner, JSON per version | Done |
+| R6 | 4 versions evaluated, scores recorded | **Blocked on API key (B2)**: `pnpm eval:all` |
+| R7 | No writes, 5 s timeout, 200-row cap | Done; acceptance tests pass |
+| R8 | 10/hr per IP + daily spend cap | Done in app; console monthly cap is Logan's (B3) |
+| R9 | /evals page (fallback README table) | Done, both |
+| R10 | Stream tool calls to the UI | Done |
+| R11 | Cost + latency per question in results | Done |
+| Ship | Neon, Vercel, demo GIF | Blocked on accounts (B4, B5, B6) |
+
+## Timeline
+
 | # | When | Block | Commit | Notes |
 |---|------|-------|--------|-------|
 | 1 | 2026-11-07 20:09 | Repo skeleton | `a2e9919` | README, .gitignore, this log |
@@ -49,3 +68,4 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | 41 | 2026-11-07 20:41 | stdio MCP test | `7dd0bc3` | real child process over pipes; v3 tools; search_titles('heat') → tt0113277 |
 | 42 | 2026-11-07 20:41 | Rate limit + spend cap tests (R8) | `60b22dd` | 61/61 tests passing locally |
 | 43 | 2026-11-07 20:42 | Pool error handlers | `b8ef5b6` | prevents process crash when Neon drops idle connections |
+| 44 | 2026-11-07 20:42 | Stream-cancel fix (R8) | `8994c51` | aborted requests still count toward the daily spend cap |
