@@ -36,3 +36,4 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | 28 | 2026-11-07 20:32 | Eval Qs: aggregation x20 | `ba28a31` | a01-a20; 2-decimal rounding convention; fixed 1 tie |
 | 29 | 2026-11-07 20:32 | Eval Qs: name_ambiguity x20 | `67a3443` | n01-n20; surnames, misspelling, duplicate titles; ids pinned in gold |
 | 30 | 2026-11-07 20:34 | Eval Qs: trends x20 (100 total) | `6f28dec` | t01-t20; 20 per category, 100/100 gold healthy |
+| 31 | 2026-11-07 20:34 | Example buttons ↔ evals | `9bbe3c6` | 5 examples are eval questions; consistency test |
