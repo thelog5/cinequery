@@ -13,3 +13,4 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | 5 | 2026-11-07 20:12 | DB roles + ops schema (R7, R8) | `0dfec0a` | SELECT-only reader role w/ 5s timeout; ops.requests table for rate limit + spend |
 | 6 | 2026-11-07 20:13 | IMDb loader script (R1) | `72dfe17` | streams 4 TSVs, no temp files; --min-votes/--slim/--unlogged flags; disk-space guard |
 | 7 | 2026-11-07 20:14 | SQL guard + tests (R7) | `80ce0e9` | SELECT/WITH-only check, keyword + function denylist, LIMIT wrapper; 25 vitest cases |
+| 8 | 2026-11-07 20:15 | Read-only query runner (R7) | `f40654e` | READ ONLY txn + SET LOCAL 5s timeout, 200-row cap, friendly error mapping |
