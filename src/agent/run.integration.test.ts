@@ -105,6 +105,16 @@ describe.skipIf(!hasDb)("runAgent with a scripted model", () => {
     expect(first.system).not.toMatch(/Worked examples/);
   });
 
+  it("sends no server-side fallback fields to Haiku, which rejects them", async () => {
+    const { client, requests } = scripted([[submit("SELECT 1 AS one")]]);
+    const r = await runAgent({ question: "q", version: AGENT_VERSIONS.v4, model: "claude-haiku-5-5", anthropic: client });
+    expect(r.status).toBe("ok");
+    const first = requests[0] as { fallbacks?: unknown; betas?: unknown; output_config?: { effort?: string } };
+    expect(first.fallbacks).toBeUndefined();
+    expect(first.betas).toBeUndefined();
+    expect(first.output_config?.effort).toBe("medium");
+  });
+
   it(`enforces the ${MAX_TOOL_CALLS}-call budget`, async () => {
     const q = { type: "tool_use", name: "run_query", input: { sql: "SELECT 1" } } as const;
     const { client, requests } = scripted([[q, q, q, q], [q, q, q, q], [q, q], [submit("SELECT 1 AS one")]]);
