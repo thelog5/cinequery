@@ -69,3 +69,5 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | 42 | 2026-11-07 20:41 | Rate limit + spend cap tests (R8) | `60b22dd` | 61/61 tests passing locally |
 | 43 | 2026-11-07 20:42 | Pool error handlers | `b8ef5b6` | prevents process crash when Neon drops idle connections |
 | 44 | 2026-11-07 20:42 | Stream-cancel fix (R8) | `8994c51` | aborted requests still count toward the daily spend cap |
+| 45 | 2026-11-07 23:36 | Default model → Haiku 5.5 | `a32a6a8` | Logan asked for a small model; Opus still available via CINEQUERY_MODEL / --model |
+| 46 | 2026-11-07 23:36 | Haiku request test | `792f5f5` | 62/62 tests passing |
