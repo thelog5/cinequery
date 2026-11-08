@@ -16,7 +16,10 @@ let pool: pg.Pool | null = null;
 function opsPool(): pg.Pool | null {
   const url = env.opsDatabaseUrl();
   if (!url) return null;
-  if (!pool) pool = new pg.Pool({ connectionString: url, max: 3, idleTimeoutMillis: 10_000 });
+  if (!pool) {
+    pool = new pg.Pool({ connectionString: url, max: 3, idleTimeoutMillis: 10_000 });
+    pool.on("error", (err) => console.error("ops pool: idle client error", err.message));
+  }
   return pool;
 }
 

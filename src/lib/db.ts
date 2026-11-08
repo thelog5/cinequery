@@ -28,6 +28,8 @@ export function getReadonlyPool(): pg.Pool {
       // Client-side backstop in case the server-side timeout is ever bypassed.
       query_timeout: STATEMENT_TIMEOUT_MS + 2_000,
     });
+    // Neon closes idle connections; without a listener that error crashes the process.
+    pool.on("error", (err) => console.error("readonly pool: idle client error", err.message));
   }
   return pool;
 }
