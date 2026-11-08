@@ -28,3 +28,11 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | 20 | 2026-11-07 20:23 | MCP integration tests (R2, R7, acceptance) | `df46af2` | 37/37 passing locally; slow query killed at ~5s; writes rejected, counts unchanged |
 | 21 | 2026-11-07 20:26 | UI shell + design tokens (R4) | `80be347` | marquee theme, light/dark, fonts, nav, IMDb credit footer |
 | 22 | 2026-11-07 20:26 | Chart, SQL block, rows table (R4) | `d50dc06` | Recharts bar/line, horizontal bars for long labels, <details> SQL |
+| 23 | 2026-11-07 20:26 | Ask page + live trace (R4, R10) | `62700a3` | question box, 5 examples, NDJSON stream → tool trace, answer/chart/SQL |
+| 24 | 2026-11-07 20:27 | Eval scorer + tests (R5) | `6f0be87` | value matching ignoring names, ordered flag, 0.01 tolerance, column-mapping backtrack; 11 tests |
+| 25 | 2026-11-07 20:28 | Question loader + gold check (R5) | `0936073` | zod-validated JSONL; flags empty, >200 rows, ties at LIMIT cutoff |
+| 26 | 2026-11-07 20:29 | Eval Qs: single_table x20 | `7d44bff` | s01-s20, all gold queries healthy on local data |
+| 27 | 2026-11-07 20:31 | Eval Qs: joins x20 | `6165f31` | j01-j20; tuned thresholds to remove 4 ties found in the data |
+| 28 | 2026-11-07 20:32 | Eval Qs: aggregation x20 | `ba28a31` | a01-a20; 2-decimal rounding convention; fixed 1 tie |
+| 29 | 2026-11-07 20:32 | Eval Qs: name_ambiguity x20 | `67a3443` | n01-n20; surnames, misspelling, duplicate titles; ids pinned in gold |
+| 30 | 2026-11-07 20:34 | Eval Qs: trends x20 (100 total) | `6f28dec` | t01-t20; 20 per category, 100/100 gold healthy |
