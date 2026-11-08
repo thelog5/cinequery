@@ -22,3 +22,4 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | 14 | 2026-11-07 20:21 | System prompt + submit_answer (R3, v4) | `ffe966c` | landed in a5436b1 alongside the loader fix: grounding rules, result-shape guidance, 3 worked examples (v4), strict submit tool |
 | 15 | 2026-11-07 20:21 | Agent loop (R3) | `3ffa266` | in-memory MCP transport, 8-call budget, re-run final SQL, chart validation, events for R10 |
 | 16 | 2026-11-07 20:21 | CLI: pnpm ask | `5434381` | prints tool trace, answer, SQL, rows, tokens, cost |
+| 17 | 2026-11-07 20:22 | Rate limit + spend cap (R8) | `503e34e` | 10/hr per hashed IP, daily USD cap, Postgres-backed; fails closed |
