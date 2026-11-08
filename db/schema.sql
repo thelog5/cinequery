@@ -14,7 +14,7 @@ CREATE TABLE movies (
   tconst      text PRIMARY KEY,
   title       text NOT NULL,
   year        smallint,
-  runtime_min smallint,
+  runtime_min integer,
   genres      text[] NOT NULL DEFAULT '{}'
 );
 
