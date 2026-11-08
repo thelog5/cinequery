@@ -14,6 +14,9 @@
  *                  writers, and the top 5 billed actors/actresses per movie
  *   --unlogged     create tables UNLOGGED (no WAL) — handy on a nearly-full
  *                  local disk; never use this on Neon
+ *   --finish-only  skip the download and only run the post-load steps
+ *                  (orphan cleanup, indexes, grants) — resumes a load that
+ *                  failed at the index stage
  */
 import "dotenv/config";
 import { readFile, statfs } from "node:fs/promises";
@@ -26,17 +29,20 @@ import { env } from "../src/lib/env";
 
 const BASE_URL = "https://datasets.imdbws.com";
 const BATCH = 5000;
-const MIN_FREE_BYTES = 80 * 1024 * 1024;
+// Postgres PANICs (and truncates UNLOGGED tables on restart) if the disk
+// fills, so stop well before that.
+const MIN_FREE_BYTES = 150 * 1024 * 1024;
 const SEP = "\u001f"; // unit separator: safe to join arrays that may contain commas
 
 // ---------------------------------------------------------------- args
 function parseArgs(argv: string[]) {
-  const opts = { minVotes: 1000, slim: false, unlogged: false };
+  const opts = { minVotes: 1000, slim: false, unlogged: false, finishOnly: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--min-votes") opts.minVotes = Number(argv[++i]);
     else if (a === "--slim") opts.slim = true;
     else if (a === "--unlogged") opts.unlogged = true;
+    else if (a === "--finish-only") opts.finishOnly = true;
     else throw new Error(`Unknown argument ${a}`);
   }
   if (!Number.isInteger(opts.minVotes) || opts.minVotes < 0) {
@@ -131,160 +137,176 @@ async function main() {
 
   const client = new pg.Client({ connectionString: env.adminDatabaseUrl() });
   await client.connect();
-  // Keep index-build sorts in memory instead of spilling temp files to disk.
-  await client.query("SET maintenance_work_mem = '256MB'");
+  // Keep sorts, hashes, and index builds in memory instead of spilling temp
+  // files to disk (the orphan-cleanup anti-join spilled ~100 MB otherwise).
+  await client.query("SET maintenance_work_mem = '512MB'");
+  await client.query("SET work_mem = '512MB'");
 
   try {
-    console.log("1/6 recreating tables");
-    await client.query(await readFile("db/schema.sql", "utf8"));
-    if (opts.unlogged) {
-      for (const t of ["movies", "ratings", "people", "credits"]) {
-        await client.query(`ALTER TABLE ${t} SET UNLOGGED`);
-      }
-    }
-
-    // --- ratings: the vote filter decides everything downstream ---------
-    console.log("2/6 title.ratings.tsv.gz");
-    const ratings = new Map<string, { avg: string; votes: number }>();
-    let scanned = 0;
-    for await (const [tconst, avg, votes] of tsvRows("title.ratings.tsv.gz")) {
-      scanned++;
-      const v = Number(votes);
-      if (v >= opts.minVotes) ratings.set(tconst, { avg, votes: v });
-    }
-    console.log(`  ${ratings.size.toLocaleString()} titles of any type pass the vote filter`);
-
-    // --- movies -------------------------------------------------------
-    console.log("3/6 title.basics.tsv.gz");
-    const movieIds = new Set<string>();
-    const mCols: Batch = [[], [], [], [], []];
-    const rCols: Batch = [[], [], []];
-    scanned = 0;
-    for await (const row of tsvRows("title.basics.tsv.gz")) {
-      scanned++;
-      // tconst titleType primaryTitle originalTitle isAdult startYear endYear runtimeMinutes genres
-      const [tconst, type, title, , , startYear, , runtime, genres] = row;
-      if (type !== "movie") continue;
-      const r = ratings.get(tconst);
-      if (!r) continue;
-      movieIds.add(tconst);
-      mCols[0].push(tconst);
-      mCols[1].push(title);
-      mCols[2].push(int(startYear));
-      mCols[3].push(int(runtime));
-      mCols[4].push(nul(genres));
-      rCols[0].push(tconst);
-      rCols[1].push(r.avg);
-      rCols[2].push(r.votes);
-      if (mCols[0].length >= BATCH) {
-        await flush(client, INSERT_MOVIES, mCols);
-        await flush(client, INSERT_RATINGS, rCols);
-      }
-      if (scanned % 250_000 === 0) progress("basics", scanned, movieIds.size);
-    }
-    await flush(client, INSERT_MOVIES, mCols);
-    await flush(client, INSERT_RATINGS, rCols);
-    ratings.clear();
-    progress("basics", scanned, movieIds.size);
-    console.log();
-
-    // --- credits ------------------------------------------------------
-    console.log("4/6 title.principals.tsv.gz (largest file, a few minutes)");
-    const personIds = new Set<string>();
-    const cCols: Batch = [[], [], [], [], []];
-    let creditCount = 0;
-    let currentMovie = "";
-    let actorsSeen = 0;
-    scanned = 0;
-    for await (const row of tsvRows("title.principals.tsv.gz")) {
-      scanned++;
-      if (scanned % 1_000_000 === 0) progress("principals", scanned, creditCount);
-      // tconst ordering nconst category job characters
-      const [tconst, ordering, nconst, category, , characters] = row;
-      if (!movieIds.has(tconst)) continue;
-      if (tconst !== currentMovie) {
-        currentMovie = tconst;
-        actorsSeen = 0;
-      }
-      if (opts.slim) {
-        const isCast = category === "actor" || category === "actress";
-        if (isCast) actorsSeen++;
-        const keep = category === "director" || category === "writer" || (isCast && actorsSeen <= 5);
-        if (!keep) continue;
-      }
-      personIds.add(nconst);
-      cCols[0].push(tconst);
-      cCols[1].push(nconst);
-      cCols[2].push(category);
-      cCols[3].push(parseCharacters(nul(characters)));
-      cCols[4].push(int(ordering));
-      creditCount++;
-      if (cCols[0].length >= BATCH) {
-        await assertDiskSpace();
-        await flush(client, INSERT_CREDITS, cCols);
-      }
-    }
-    await flush(client, INSERT_CREDITS, cCols);
-    progress("principals", scanned, creditCount);
-    console.log();
-
-    // --- people -------------------------------------------------------
-    console.log("5/6 name.basics.tsv.gz");
-    const pCols: Batch = [[], [], [], [], []];
-    let peopleCount = 0;
-    scanned = 0;
-    for await (const row of tsvRows("name.basics.tsv.gz")) {
-      scanned++;
-      // nconst primaryName birthYear deathYear primaryProfession knownForTitles
-      const [nconst, name, birth, death, professions] = row;
-      if (!personIds.has(nconst)) continue;
-      pCols[0].push(nconst);
-      pCols[1].push(name);
-      pCols[2].push(int(birth));
-      pCols[3].push(int(death));
-      pCols[4].push(nul(professions) || null);
-      peopleCount++;
-      if (pCols[0].length >= BATCH) {
-        await assertDiskSpace();
-        await flush(client, INSERT_PEOPLE, pCols);
-      }
-      if (scanned % 1_000_000 === 0) progress("names", scanned, peopleCount);
-    }
-    await flush(client, INSERT_PEOPLE, pCols);
-    progress("names", scanned, peopleCount);
-    console.log();
-
-    // A handful of principals reference people missing from name.basics;
-    // drop those so the foreign key can be added.
-    const orphans = await client.query(
-      "DELETE FROM credits c WHERE NOT EXISTS (SELECT 1 FROM people p WHERE p.nconst = c.nconst)",
-    );
-    if (orphans.rowCount) console.log(`  dropped ${orphans.rowCount} credits with no matching person`);
-
-    // --- indexes ------------------------------------------------------
-    console.log("6/6 building indexes and foreign keys");
-    await assertDiskSpace();
-    await client.query(await readFile("db/indexes.sql", "utf8"));
-    // Recreating tables drops grants; restore them if the reader role exists.
-    await client.query(`DO $$ BEGIN
-      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cinequery_reader') THEN
-        GRANT SELECT ON movies, ratings, people, credits TO cinequery_reader;
-      END IF; END $$`);
-
-    const counts = await client.query<{ t: string; n: string; size: string }>(`
-      SELECT t, n::text, pg_size_pretty(pg_total_relation_size(t::regclass)) AS size FROM (
-        SELECT 'movies' AS t, count(*) AS n FROM movies UNION ALL
-        SELECT 'ratings', count(*) FROM ratings UNION ALL
-        SELECT 'people', count(*) FROM people UNION ALL
-        SELECT 'credits', count(*) FROM credits) x`);
-    console.log("\nLoaded:");
-    for (const r of counts.rows) console.log(`  ${r.t.padEnd(8)} ${Number(r.n).toLocaleString().padStart(10)} rows  ${r.size}`);
-    const db = await client.query<{ size: string }>("SELECT pg_size_pretty(pg_database_size(current_database())) AS size");
-    console.log(`  database size: ${db.rows[0].size}`);
+    if (!opts.finishOnly) await loadTables(client, opts);
+    await finish(client);
     console.log(`Done in ${((Date.now() - started) / 1000).toFixed(0)} s`);
   } finally {
     await client.end();
   }
+}
+
+async function loadTables(client: pg.Client, opts: ReturnType<typeof parseArgs>) {
+  console.log("1/6 recreating tables");
+  await client.query(await readFile("db/schema.sql", "utf8"));
+  if (opts.unlogged) {
+    for (const t of ["movies", "ratings", "people", "credits"]) {
+      await client.query(`ALTER TABLE ${t} SET UNLOGGED`);
+    }
+  }
+
+  // --- ratings: the vote filter decides everything downstream ---------
+  console.log("2/6 title.ratings.tsv.gz");
+  const ratings = new Map<string, { avg: string; votes: number }>();
+  let scanned = 0;
+  for await (const [tconst, avg, votes] of tsvRows("title.ratings.tsv.gz")) {
+    scanned++;
+    const v = Number(votes);
+    if (v >= opts.minVotes) ratings.set(tconst, { avg, votes: v });
+  }
+  console.log(`  ${ratings.size.toLocaleString()} titles of any type pass the vote filter`);
+
+  // --- movies -------------------------------------------------------
+  console.log("3/6 title.basics.tsv.gz");
+  const movieIds = new Set<string>();
+  const mCols: Batch = [[], [], [], [], []];
+  const rCols: Batch = [[], [], []];
+  scanned = 0;
+  for await (const row of tsvRows("title.basics.tsv.gz")) {
+    scanned++;
+    // tconst titleType primaryTitle originalTitle isAdult startYear endYear runtimeMinutes genres
+    const [tconst, type, title, , , startYear, , runtime, genres] = row;
+    if (type !== "movie") continue;
+    const r = ratings.get(tconst);
+    if (!r) continue;
+    movieIds.add(tconst);
+    mCols[0].push(tconst);
+    mCols[1].push(title);
+    mCols[2].push(int(startYear));
+    mCols[3].push(int(runtime));
+    mCols[4].push(nul(genres));
+    rCols[0].push(tconst);
+    rCols[1].push(r.avg);
+    rCols[2].push(r.votes);
+    if (mCols[0].length >= BATCH) {
+      await flush(client, INSERT_MOVIES, mCols);
+      await flush(client, INSERT_RATINGS, rCols);
+    }
+    if (scanned % 250_000 === 0) progress("basics", scanned, movieIds.size);
+  }
+  await flush(client, INSERT_MOVIES, mCols);
+  await flush(client, INSERT_RATINGS, rCols);
+  ratings.clear();
+  progress("basics", scanned, movieIds.size);
+  console.log();
+
+  // --- credits ------------------------------------------------------
+  console.log("4/6 title.principals.tsv.gz (largest file, a few minutes)");
+  const personIds = new Set<string>();
+  const cCols: Batch = [[], [], [], [], []];
+  let creditCount = 0;
+  let currentMovie = "";
+  let actorsSeen = 0;
+  scanned = 0;
+  for await (const row of tsvRows("title.principals.tsv.gz")) {
+    scanned++;
+    if (scanned % 1_000_000 === 0) progress("principals", scanned, creditCount);
+    // tconst ordering nconst category job characters
+    const [tconst, ordering, nconst, category, , characters] = row;
+    if (!movieIds.has(tconst)) continue;
+    if (tconst !== currentMovie) {
+      currentMovie = tconst;
+      actorsSeen = 0;
+    }
+    if (opts.slim) {
+      const isCast = category === "actor" || category === "actress";
+      if (isCast) actorsSeen++;
+      const keep = category === "director" || category === "writer" || (isCast && actorsSeen <= 5);
+      if (!keep) continue;
+    }
+    personIds.add(nconst);
+    cCols[0].push(tconst);
+    cCols[1].push(nconst);
+    cCols[2].push(category);
+    cCols[3].push(parseCharacters(nul(characters)));
+    cCols[4].push(int(ordering));
+    creditCount++;
+    if (cCols[0].length >= BATCH) {
+      await assertDiskSpace();
+      await flush(client, INSERT_CREDITS, cCols);
+    }
+  }
+  await flush(client, INSERT_CREDITS, cCols);
+  progress("principals", scanned, creditCount);
+  console.log();
+
+  // --- people -------------------------------------------------------
+  console.log("5/6 name.basics.tsv.gz");
+  const pCols: Batch = [[], [], [], [], []];
+  let peopleCount = 0;
+  scanned = 0;
+  for await (const row of tsvRows("name.basics.tsv.gz")) {
+    scanned++;
+    // nconst primaryName birthYear deathYear primaryProfession knownForTitles
+    const [nconst, name, birth, death, professions] = row;
+    if (!personIds.has(nconst)) continue;
+    pCols[0].push(nconst);
+    pCols[1].push(name);
+    pCols[2].push(int(birth));
+    pCols[3].push(int(death));
+    pCols[4].push(nul(professions) || null);
+    peopleCount++;
+    if (pCols[0].length >= BATCH) {
+      await assertDiskSpace();
+      await flush(client, INSERT_PEOPLE, pCols);
+    }
+    if (scanned % 1_000_000 === 0) progress("names", scanned, peopleCount);
+  }
+  await flush(client, INSERT_PEOPLE, pCols);
+  progress("names", scanned, peopleCount);
+  console.log();
+}
+
+async function finish(client: pg.Client) {
+  // A handful of principals reference people missing from name.basics;
+  // drop those so the foreign key can be added.
+  const orphans = await client.query(
+    "DELETE FROM credits c WHERE NOT EXISTS (SELECT 1 FROM people p WHERE p.nconst = c.nconst)",
+  );
+  if (orphans.rowCount) console.log(`  dropped ${orphans.rowCount} credits with no matching person`);
+
+  // --- indexes ------------------------------------------------------
+  console.log("6/6 building indexes and foreign keys");
+  // One statement at a time so a disk check runs before each index build.
+  const statements = (await readFile("db/indexes.sql", "utf8"))
+    .split(/;\s*$/m)
+    .map((s) => s.replace(/^\s*--.*$/gm, "").trim())
+    .filter(Boolean);
+  for (const stmt of statements) {
+    await assertDiskSpace();
+    await client.query(stmt);
+  }
+  // Recreating tables drops grants; restore them if the reader role exists.
+  await client.query(`DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cinequery_reader') THEN
+      GRANT SELECT ON movies, ratings, people, credits TO cinequery_reader;
+    END IF; END $$`);
+
+  const counts = await client.query<{ t: string; n: string; size: string }>(`
+    SELECT t, n::text, pg_size_pretty(pg_total_relation_size(t::regclass)) AS size FROM (
+      SELECT 'movies' AS t, count(*) AS n FROM movies UNION ALL
+      SELECT 'ratings', count(*) FROM ratings UNION ALL
+      SELECT 'people', count(*) FROM people UNION ALL
+      SELECT 'credits', count(*) FROM credits) x`);
+  console.log("\nLoaded:");
+  for (const r of counts.rows) console.log(`  ${r.t.padEnd(8)} ${Number(r.n).toLocaleString().padStart(10)} rows  ${r.size}`);
+  const db = await client.query<{ size: string }>("SELECT pg_size_pretty(pg_database_size(current_database())) AS size");
+  console.log(`  database size: ${db.rows[0].size}`);
 }
 
 main().catch((err) => {

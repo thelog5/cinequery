@@ -16,3 +16,4 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | 8 | 2026-11-07 20:15 | Read-only query runner (R7) | `f40654e` | READ ONLY txn + SET LOCAL 5s timeout, 200-row cap, friendly error mapping |
 | 9 | 2026-11-07 20:16 | Data tools (R2) | `dcb245a` | list_tables, describe_table (basic/rich), search_people, search_titles (trigram + popularity), run_query |
 | 10 | 2026-11-07 20:17 | Agent version configs (R6) | `9833106` | v1-v4 flags: richDescribe, searchTools, workedExamples |
+| 11 | 2026-11-07 20:17 | MCP server + stdio entry (R2) | `b5de1e8` | versioned McpServer factory; pnpm mcp runs it over stdio |
