@@ -13,7 +13,7 @@
     "start": "next start",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "db:schema": "tsx scripts/apply-sql.ts db/schema.sql db/ops.sql",
+    "db:ops": "tsx scripts/apply-sql.ts db/ops.sql",
     "db:load": "tsx scripts/load-imdb.ts",
     "db:roles": "tsx scripts/setup-roles.ts",
     "mcp": "tsx src/mcp/stdio.ts",

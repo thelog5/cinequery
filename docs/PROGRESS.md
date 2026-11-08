@@ -23,3 +23,5 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | 15 | 2026-11-07 20:21 | Agent loop (R3) | `3ffa266` | in-memory MCP transport, 8-call budget, re-run final SQL, chart validation, events for R10 |
 | 16 | 2026-11-07 20:21 | CLI: pnpm ask | `5434381` | prints tool trace, answer, SQL, rows, tokens, cost |
 | 17 | 2026-11-07 20:22 | Rate limit + spend cap (R8) | `503e34e` | 10/hr per hashed IP, daily USD cap, Postgres-backed; fails closed |
+| 18 | 2026-11-07 20:22 | POST /api/ask (R3, R10) | `98c59fe` | JSON or NDJSON event stream; maxDuration 120 |
+| 19 | 2026-11-07 20:22 | Local slim load + roles verified | `98c59fe` | slim local DB: 49,466 movies / 138,864 people / 388,558 credits (109 MB). Reader role: SELECT-only, read-only, 5s — verified DELETE/DROP denied |
