@@ -46,3 +46,4 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | 38 | 2026-11-07 20:38 | Missing-key error message | `f0823a9` |  |
 | 39 | 2026-11-07 20:38 | Eval report + run-all (R9 fallback) | `523487d` | pnpm eval:report fills README table; pnpm eval:all runs v1-v4 |
 | 40 | 2026-11-07 20:39 | README | `9070cfb` | architecture diagram, setup, deploy, MCP config, evals guide, results markers |
+| 41 | 2026-11-07 20:41 | stdio MCP test | `7dd0bc3` | real child process over pipes; v3 tools; search_titles('heat') → tt0113277 |
