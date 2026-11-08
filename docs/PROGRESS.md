@@ -12,3 +12,4 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | 4 | 2026-11-07 20:12 | DB schema (R1) | `05aa87a` | 4 tables per PRD, COMMENT ON every column, trigram + filter indexes in indexes.sql |
 | 5 | 2026-11-07 20:12 | DB roles + ops schema (R7, R8) | `0dfec0a` | SELECT-only reader role w/ 5s timeout; ops.requests table for rate limit + spend |
 | 6 | 2026-11-07 20:13 | IMDb loader script (R1) | `72dfe17` | streams 4 TSVs, no temp files; --min-votes/--slim/--unlogged flags; disk-space guard |
+| 7 | 2026-11-07 20:14 | SQL guard + tests (R7) | `80ce0e9` | SELECT/WITH-only check, keyword + function denylist, LIMIT wrapper; 25 vitest cases |
