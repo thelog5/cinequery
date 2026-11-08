@@ -37,3 +37,7 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | 29 | 2026-11-07 20:32 | Eval Qs: name_ambiguity x20 | `67a3443` | n01-n20; surnames, misspelling, duplicate titles; ids pinned in gold |
 | 30 | 2026-11-07 20:34 | Eval Qs: trends x20 (100 total) | `6f28dec` | t01-t20; 20 per category, 100/100 gold healthy |
 | 31 | 2026-11-07 20:34 | Example buttons ↔ evals | `9bbe3c6` | 5 examples are eval questions; consistency test |
+| 32 | 2026-11-07 20:34 | De-leak worked examples | `b36d64d` | v4 examples no longer mirror eval questions; 2-dp rounding default |
+| 33 | 2026-11-07 20:35 | Eval runner (R5, R11) | `341eabb` | per-question JSON w/ tokens, cost, latency; per-category accuracy; cost cap; BLOCKED on API key for real runs (B2) |
+| 34 | 2026-11-07 20:35 | Agent loop tests (fake model) | `549a796` | 9 tests: budget, re-run, retries, write rejection, v1/v4 tool sets — no API key needed |
+| 35 | 2026-11-07 20:37 | Chart color + mark specs | `e7e8dbd` | validated --chart token light/dark; 2px lines, 8px markers, 4px bar ends |
