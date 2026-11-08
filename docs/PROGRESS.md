@@ -43,3 +43,6 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | 35 | 2026-11-07 20:37 | Chart color + mark specs | `e7e8dbd` | validated --chart token light/dark; 2px lines, 8px markers, 4px bar ends |
 | 36 | 2026-11-07 20:37 | /evals page (R9) | `f408a89` | headline + biggest jump, accuracy line, category table, per-question grid, empty state |
 | 37 | 2026-11-07 20:38 | Prod build + smoke test | `6bf53ed` | next build OK (/, /evals static; /api/ask dynamic). Verified live: 400 on bad input, NDJSON stream, 429 after 10/hr w/ Retry-After, 503 past daily cap |
+| 38 | 2026-11-07 20:38 | Missing-key error message | `f0823a9` |  |
+| 39 | 2026-11-07 20:38 | Eval report + run-all (R9 fallback) | `523487d` | pnpm eval:report fills README table; pnpm eval:all runs v1-v4 |
+| 40 | 2026-11-07 20:39 | README | `9070cfb` | architecture diagram, setup, deploy, MCP config, evals guide, results markers |
