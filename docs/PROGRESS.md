@@ -27,3 +27,4 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | 19 | 2026-11-07 20:22 | Local slim load + roles verified | `98c59fe` | slim local DB: 49,466 movies / 138,864 people / 388,558 credits (109 MB). Reader role: SELECT-only, read-only, 5s — verified DELETE/DROP denied |
 | 20 | 2026-11-07 20:23 | MCP integration tests (R2, R7, acceptance) | `df46af2` | 37/37 passing locally; slow query killed at ~5s; writes rejected, counts unchanged |
 | 21 | 2026-11-07 20:26 | UI shell + design tokens (R4) | `80be347` | marquee theme, light/dark, fonts, nav, IMDb credit footer |
+| 22 | 2026-11-07 20:26 | Chart, SQL block, rows table (R4) | `d50dc06` | Recharts bar/line, horizontal bars for long labels, <details> SQL |
