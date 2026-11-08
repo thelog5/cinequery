@@ -19,7 +19,9 @@
     "mcp": "tsx src/mcp/stdio.ts",
     "ask": "tsx scripts/ask.ts",
     "eval": "tsx evals/run.ts",
-    "eval:check-gold": "tsx evals/check-gold.ts"
+    "eval:check-gold": "tsx evals/check-gold.ts",
+    "eval:report": "tsx evals/report.ts",
+    "eval:all": "scripts/run-all-evals.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.6.0",
