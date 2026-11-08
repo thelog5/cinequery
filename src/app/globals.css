@@ -10,6 +10,7 @@
   --velvet: #8c1c2e;  /* theatre-seat red: the accent */
   --velvet-ink: #ffffff;
   --brass: #a9844a;   /* marquee bulbs, secondary */
+  --chart: #a8283d;   /* single-series chart marks (validated vs paper) */
   --bulb-off: #cdb68e;
   --ok: #2f6b4f;
   --bad: #a3322a;
@@ -31,6 +32,7 @@
     --velvet: #e0566b;
     --velvet-ink: #121820;
     --brass: #d4ae6e;
+    --chart: #e0566b;
     --bulb-off: #5c4d33;
     --ok: #6fbf95;
     --bad: #ef7b70;
@@ -392,7 +394,7 @@ a {
 .score-bar > span {
   display: block;
   height: 100%;
-  background: var(--velvet);
+  background: var(--chart);
 }
 
 .section-title {

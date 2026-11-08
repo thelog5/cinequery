@@ -51,7 +51,7 @@ export function ResultChart({ spec, rows }: { spec: ChartSpec; rows: Record<stri
             <XAxis dataKey={spec.x} tick={AXIS} stroke="var(--rule)" />
             <YAxis tick={AXIS} stroke="var(--rule)" width={56} domain={["auto", "auto"]} />
             <Tooltip contentStyle={tooltipStyle} />
-            <Line type="monotone" dataKey={spec.y} stroke="var(--velvet)" strokeWidth={2.5} dot={{ r: 3 }} />
+            <Line type="monotone" dataKey={spec.y} stroke="var(--chart)" strokeWidth={2} dot={{ r: 4, fill: "var(--chart)", stroke: "var(--panel)", strokeWidth: 2 }} activeDot={{ r: 5 }} />
           </LineChart>
         ) : horizontal ? (
           <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
@@ -66,7 +66,7 @@ export function ResultChart({ spec, rows }: { spec: ChartSpec; rows: Record<stri
               tickFormatter={(v) => truncate(v, 22)}
             />
             <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--rule)", opacity: 0.4 }} />
-            <Bar dataKey={spec.y} fill="var(--velvet)" radius={[0, 3, 3, 0]} />
+            <Bar dataKey={spec.y} fill="var(--chart)" radius={[0, 4, 4, 0]} />
           </BarChart>
         ) : (
           <BarChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
@@ -74,7 +74,7 @@ export function ResultChart({ spec, rows }: { spec: ChartSpec; rows: Record<stri
             <XAxis dataKey={spec.x} tick={AXIS} stroke="var(--rule)" tickFormatter={(v) => truncate(v)} />
             <YAxis tick={AXIS} stroke="var(--rule)" width={56} />
             <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--rule)", opacity: 0.4 }} />
-            <Bar dataKey={spec.y} fill="var(--velvet)" radius={[3, 3, 0, 0]} />
+            <Bar dataKey={spec.y} fill="var(--chart)" radius={[4, 4, 0, 0]} />
           </BarChart>
         )}
       </ResponsiveContainer>
