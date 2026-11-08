@@ -23,3 +23,6 @@ coverage/
 data/
 *.tsv
 *.tsv.gz
+
+# partial eval runs
+evals/results/scratch/
