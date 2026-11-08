@@ -36,7 +36,8 @@ async function main() {
       if (r.truncated) issues.push("returns more than 200 rows");
 
       const limit = /\blimit\s+(\d+)\s*;?\s*$/i.exec(q.gold_sql);
-      if (limit && r.rowCount === Number(limit[1])) {
+      // Questions that state their own tiebreak ("break ties by ...") are exempt.
+      if (limit && r.rowCount === Number(limit[1]) && !/\btie/i.test(q.question)) {
         const n = Number(limit[1]);
         const wider = await runReadOnlyQuery(q.gold_sql.replace(/\blimit\s+\d+\s*;?\s*$/i, `LIMIT ${n + 1}`));
         if (wider.rowCount > n) {
