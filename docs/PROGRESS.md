@@ -7,3 +7,4 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | # | When | Block | Commit | Notes |
 |---|------|-------|--------|-------|
 | 1 | 2026-11-07 20:09 | Repo skeleton | `d88a300` | README, .gitignore, this log |
+| 2 | 2026-11-07 20:09 | Project config | `077a144` | package.json scripts, tsconfig, next.config, .env.example |
