@@ -41,3 +41,5 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | 33 | 2026-11-07 20:35 | Eval runner (R5, R11) | `341eabb` | per-question JSON w/ tokens, cost, latency; per-category accuracy; cost cap; BLOCKED on API key for real runs (B2) |
 | 34 | 2026-11-07 20:35 | Agent loop tests (fake model) | `549a796` | 9 tests: budget, re-run, retries, write rejection, v1/v4 tool sets — no API key needed |
 | 35 | 2026-11-07 20:37 | Chart color + mark specs | `e7e8dbd` | validated --chart token light/dark; 2px lines, 8px markers, 4px bar ends |
+| 36 | 2026-11-07 20:37 | /evals page (R9) | `f408a89` | headline + biggest jump, accuracy line, category table, per-question grid, empty state |
+| 37 | 2026-11-07 20:38 | Prod build + smoke test | `6bf53ed` | next build OK (/, /evals static; /api/ask dynamic). Verified live: 400 on bad input, NDJSON stream, 429 after 10/hr w/ Retry-After, 503 past daily cap |

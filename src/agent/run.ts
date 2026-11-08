@@ -149,6 +149,9 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentRunResult> {
   };
 
   emit({ type: "start", version: version.id, model });
+  if (!opts.anthropic && !process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
+    return finish({ status: "error", error: "ANTHROPIC_API_KEY is not set on the server." });
+  }
   const mcp = await connectMcp(version);
 
   try {
