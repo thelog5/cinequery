@@ -140,7 +140,7 @@ There are 100 questions, 20 in each category: single table, joins, aggregation, 
 ```bash
 pnpm eval --version v1                         # full run -> evals/results/v1.json
 pnpm eval --version v3 --category joins        # partial run -> evals/results/scratch/
-pnpm eval --version v4 --model claude-sonnet-5-5   # second model -> v4.claude-sonnet-5-5.json
+pnpm eval --version v4 --model claude-opus-5-5     # second model -> v4.claude-opus-5-5.json
 pnpm eval:all                                  # v1-v4, then refresh the README table
 ```
 

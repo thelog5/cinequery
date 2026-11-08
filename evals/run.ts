@@ -4,11 +4,11 @@
  *
  *   pnpm eval --version v1
  *   pnpm eval --version v3 --category name_ambiguity --limit 5
- *   pnpm eval --version v4 --model claude-sonnet-5-5   # -> v4.claude-sonnet-5-5.json
+ *   pnpm eval --version v4 --model claude-opus-5-5   # -> v4.claude-opus-5-5.json
  *
  * Options:
  *   --version v1..v4      required
- *   --model <id>          default CINEQUERY_MODEL or claude-opus-5-5
+ *   --model <id>          default CINEQUERY_MODEL or claude-haiku-5-5
  *   --effort <level>      default CINEQUERY_EFFORT or medium
  *   --concurrency N       parallel questions (default 4)
  *   --ids a01,j07         only these questions
@@ -23,7 +23,7 @@ import { dirname } from "node:path";
 import { runAgent } from "../src/agent/run";
 import { getVersion } from "../src/agent/versions";
 import { getReadonlyPool, runReadOnlyQuery } from "../src/lib/db";
-import { env } from "../src/lib/env";
+import { DEFAULT_MODEL, env } from "../src/lib/env";
 import { type EvalQuestion, loadQuestions } from "./questions";
 import { score } from "./score";
 import { type EvalQuestionResult, summarize } from "./types";
@@ -92,7 +92,7 @@ async function main() {
   if (category) questions = questions.filter((q) => q.category === category);
   if (limit) questions = questions.slice(0, limit);
 
-  const defaultModel = model === "claude-opus-5-5";
+  const defaultModel = model === DEFAULT_MODEL;
   const partial = Boolean(ids || category || limit);
   // Partial runs go to a gitignored scratch folder so they never clobber a full vN.json.
   const out =

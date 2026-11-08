@@ -5,7 +5,7 @@
 #   scripts/run-all-evals.sh            # v1..v4 on the default model
 #   scripts/run-all-evals.sh v3 v4      # just these versions
 #
-# Rough cost on claude-opus-5-5: a few cents per question, so ~$5-15 per version
+# Rough cost on claude-haiku-5-5: under a cent per question, so ~$1 per version
 # for 100 questions. Each run stops starting new questions past --max-cost.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"

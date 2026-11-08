@@ -21,6 +21,9 @@ function optionalNumber(name: string, fallback: number): number {
   return parsed;
 }
 
+/** Model for the demo and default eval runs. Haiku keeps a public demo cheap; override with CINEQUERY_MODEL. */
+export const DEFAULT_MODEL = "claude-haiku-5-5";
+
 export const env = {
   /** Owner connection — scripts only (schema, loader, roles). */
   adminDatabaseUrl: () => required("DATABASE_URL_ADMIN"),
@@ -28,7 +31,7 @@ export const env = {
   readonlyDatabaseUrl: () => required("DATABASE_URL_READONLY"),
   /** Role that may only write ops.requests. Optional: abuse controls are skipped without it. */
   opsDatabaseUrl: () => process.env.DATABASE_URL_OPS || null,
-  model: () => process.env.CINEQUERY_MODEL || "claude-opus-5-5",
+  model: () => process.env.CINEQUERY_MODEL || DEFAULT_MODEL,
   effort: () =>
     (process.env.CINEQUERY_EFFORT || "medium") as "low" | "medium" | "high" | "xhigh" | "max",
   rateLimitPerHour: () => optionalNumber("RATE_LIMIT_PER_HOUR", 10),

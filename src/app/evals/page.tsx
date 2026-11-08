@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AGENT_VERSIONS } from "@/agent/versions";
 import { EvalsChart } from "@/components/EvalsChart";
 import { biggestJump, loadOtherModelRuns, loadVersionRuns } from "@/lib/eval-results";
+import { DEFAULT_MODEL } from "@/lib/env";
 import { CATEGORIES, CATEGORY_LABELS, loadQuestions } from "../../../evals/questions";
 import type { EvalRun } from "../../../evals/types";
 
@@ -58,7 +59,7 @@ function VersionTable({ runs }: { runs: EvalRun[] }) {
             <tr key={`${r.version}-${r.model}`}>
               <th scope="row">
                 {r.version}
-                {r.model !== "claude-opus-5-5" && <div className="meta">{r.model}</div>}
+                {r.model !== DEFAULT_MODEL && <div className="meta">{r.model}</div>}
               </th>
               <td>{r.change}</td>
               <ScoreCell value={r.accuracy} />
