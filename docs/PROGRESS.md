@@ -71,3 +71,7 @@ Open questions and blockers for Logan live in the [questions doc](https://claude
 | 44 | 2026-11-07 20:42 | Stream-cancel fix (R8) | `8994c51` | aborted requests still count toward the daily spend cap |
 | 45 | 2026-11-07 23:36 | Default model → Haiku 5.5 | `a32a6a8` | Logan asked for a small model; Opus still available via CINEQUERY_MODEL / --model |
 | 46 | 2026-11-07 23:36 | Haiku request test | `792f5f5` | 62/62 tests passing |
+| 47 | 2026-11-10 23:58 | UI redesign: theatre theme (R4, R10) | `7805fd8` | marquee question box with chasing bulbs, silver answer screen, popcorn-kernel agent trace, striped awning, popcorn favicon; removed mascot/stat strip/numbered cards |
+| 48 | 2026-11-10 23:58 | Year formatting in rows table | `4dac512` | year/decade columns no longer show "1,950" |
+| 49 | 2026-11-10 23:58 | Chart axis ticks | `c6a6d5d` | ticks filled, not stroked; display font |
+| 50 | 2026-11-10 23:58 | /evals restyle (R9) | `a687293` | chart on the screen surface, wider category table on desktop, plain empty state; 62/62 tests, prod build OK |
