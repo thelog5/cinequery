@@ -10,7 +10,7 @@ export interface VersionPoint {
   total: number;
 }
 
-const AXIS = { stroke: "var(--muted)", fontSize: 12 };
+const AXIS = { fill: "var(--muted)", fontSize: 14, fontFamily: "var(--font-display)" };
 
 function TooltipBody({ active, payload }: { active?: boolean; payload?: { payload: VersionPoint }[] }) {
   if (!active || !payload?.length) return null;

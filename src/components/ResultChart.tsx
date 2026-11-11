@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import type { ChartSpec } from "@/agent/types";
 
-const AXIS = { stroke: "var(--muted)", fontSize: 12 };
+const AXIS = { fill: "var(--muted)", fontSize: 14, fontFamily: "var(--font-display)" };
 const tooltipStyle = {
   background: "var(--panel)",
   border: "1px solid var(--rule)",
