@@ -1,9 +1,15 @@
 "use client";
 
-function formatCell(v: unknown): string {
+/** Years and decades read wrong with thousands separators ("1,950"). */
+const YEAR_COLUMN = /year|decade/i;
+
+function formatCell(v: unknown, column: string): string {
   if (v === null || v === undefined) return "";
   if (Array.isArray(v)) return v.join(", ");
-  if (typeof v === "number") return Number.isInteger(v) ? v.toLocaleString() : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  if (typeof v === "number") {
+    if (Number.isInteger(v) && YEAR_COLUMN.test(column)) return String(v);
+    return Number.isInteger(v) ? v.toLocaleString() : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
   return String(v);
 }
 
@@ -44,7 +50,7 @@ export function RowsTable({ columns, rows }: { columns: string[]; rows: Record<s
               <tr key={i}>
                 {columns.map((c) => (
                   <td key={c} className={numeric.has(c) ? "num" : undefined}>
-                    {formatCell(r[c])}
+                    {formatCell(r[c], c)}
                   </td>
                 ))}
               </tr>
