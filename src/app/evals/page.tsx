@@ -29,7 +29,7 @@ function ScoreCell({ value }: { value: number | undefined }) {
 
 function VersionTable({ runs }: { runs: EvalRun[] }) {
   return (
-    <div className="table-scroll">
+    <div className="table-scroll breakout">
       <table className="evals-table">
         <thead>
           <tr>
@@ -61,7 +61,7 @@ function VersionTable({ runs }: { runs: EvalRun[] }) {
                 {r.version}
                 {r.model !== DEFAULT_MODEL && <div className="meta">{r.model}</div>}
               </th>
-              <td>{r.change}</td>
+              <td className="change">{r.change}</td>
               <ScoreCell value={r.accuracy} />
               {CATEGORIES.map((c) => (
                 <ScoreCell key={c} value={r.by_category[c]?.accuracy} />
@@ -128,76 +128,96 @@ export default function EvalsPage() {
 
   return (
     <>
-      <h1 className="hero-title">Did the agent get better?</h1>
-      <p className="hero-sub">
-        Each version changes one thing about the agent. Every version answers the same {total} hand-written questions,
-        and each answer is checked against the result of a gold SQL query.
+      <h1 className="page-title">Did the agent get better?</h1>
+      <p className="lede">
+        Each version changes one thing about the agent. All of them answer the same {total} hand-written questions, and
+        every answer is checked against the result of a gold SQL query.
       </p>
 
       {runs.length === 0 ? (
-        <section className="prose">
-          <p>
-            No eval runs are recorded yet. Run <code>pnpm eval --version v1</code> through <code>v4</code> and commit
-            the files in <code>evals/results/</code>; this page reads them at build time.
+        <section className="evals-section" aria-labelledby="pending-title">
+          <h2 id="pending-title" className="section-title">
+            No scores yet
+          </h2>
+          <p className="prose">
+            Scores appear here once each version has answered all {total} questions. This is what each version changes:
           </p>
-          <h2 className="section-title">The plan</h2>
-          <table className="evals-table">
-            <tbody>
-              {Object.values(AGENT_VERSIONS).map((v) => (
-                <tr key={v.id}>
-                  <th scope="row">{v.id}</th>
-                  <td>{v.change}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table className="evals-table">
+              <tbody>
+                {Object.values(AGENT_VERSIONS).map((v) => (
+                  <tr key={v.id}>
+                    <th scope="row">{v.id}</th>
+                    <td>{v.change}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="meta">
+            To record a run, use <code>pnpm eval --version v1</code> and commit the files in <code>evals/results/</code>.
+          </p>
         </section>
       ) : (
         <>
           {first && last && first !== last && (
-            <p className="answer">
+            <p className="headline">
               Accuracy went from {pct(first.accuracy)} with {first.version} to {pct(last.accuracy)} with {last.version}.
               {jump &&
                 ` The biggest ${jump.delta >= 0 ? "jump" : "drop"} (${jump.delta >= 0 ? "+" : ""}${(jump.delta * 100).toFixed(0)} points) came from ${jump.to.version}: ${jump.to.change.charAt(0).toLowerCase()}${jump.to.change.slice(1)}.`}
             </p>
           )}
 
-          <EvalsChart
-            points={runs.map((r) => ({
-              version: r.version,
-              change: r.change,
-              accuracy: r.accuracy * 100,
-              passed: r.passed,
-              total: r.total,
-            }))}
-          />
+          <div className="screen evals-chart">
+            <EvalsChart
+              points={runs.map((r) => ({
+                version: r.version,
+                change: r.change,
+                accuracy: r.accuracy * 100,
+                passed: r.passed,
+                total: r.total,
+              }))}
+            />
+          </div>
 
-          <h2 className="section-title">By category</h2>
-          <VersionTable runs={runs} />
+          <section className="evals-section" aria-labelledby="category-title">
+            <h2 id="category-title" className="section-title">
+              By category
+            </h2>
+            <VersionTable runs={runs} />
+          </section>
 
           {others.length > 0 && (
-            <>
-              <h2 className="section-title">Other models</h2>
+            <section className="evals-section" aria-labelledby="models-title">
+              <h2 id="models-title" className="section-title">
+                Other models
+              </h2>
               <VersionTable runs={others} />
-            </>
+            </section>
           )}
 
-          <PerQuestion runs={runs} />
+          <section className="evals-section" aria-label="Results for every question">
+            <PerQuestion runs={runs} />
+          </section>
         </>
       )}
 
-      <h2 className="section-title">How scoring works</h2>
-      <div className="prose">
-        <p>
-          The gold SQL for each question runs against the same database the agent uses. The agent passes when the rows
-          from its final query hold the same values, ignoring column names. Extra columns are fine, numbers match within
-          0.01, and row order counts only when the question asks for an order.
-        </p>
-        <p>
-          Every question names its vote threshold and, where needed, its tiebreak, so each one has exactly one correct
-          answer. A version that scores worse than the one before it stays in the table.
-        </p>
-      </div>
+      <section className="evals-section" aria-labelledby="scoring-title">
+        <h2 id="scoring-title" className="section-title">
+          How scoring works
+        </h2>
+        <div className="prose">
+          <p>
+            The gold SQL for each question runs against the same database the agent uses. The agent passes when the
+            rows from its final query hold the same values, ignoring column names. Extra columns are fine, numbers match
+            within 0.01, and row order counts only when the question asks for an order.
+          </p>
+          <p>
+            Every question names its vote threshold and, where needed, its tiebreak, so each one has exactly one correct
+            answer. A version that scores worse than the one before it stays in the table.
+          </p>
+        </div>
+      </section>
     </>
   );
 }
