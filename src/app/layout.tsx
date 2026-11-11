@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
-import { Big_Shoulders, Instrument_Sans, JetBrains_Mono } from "next/font/google";
+import Link from "next/link";
+import { Big_Shoulders, JetBrains_Mono, Newsreader } from "next/font/google";
 import { SiteNav } from "@/components/SiteNav";
 import "./globals.css";
 
 const display = Big_Shoulders({
   subsets: ["latin"],
-  weight: ["700", "800"],
+  axes: ["opsz"],
   variable: "--font-big-shoulders",
+  // next/font has no metrics for Big Shoulders, so it can't size a fallback; skip it rather than warn.
+  adjustFontFallback: false,
 });
-const body = Instrument_Sans({ subsets: ["latin"], variable: "--font-instrument" });
+const serif = Newsreader({ subsets: ["latin"], axes: ["opsz"], variable: "--font-newsreader" });
 const code = JetBrains_Mono({ subsets: ["latin"], weight: ["400"], variable: "--font-jetbrains" });
 
 export const metadata: Metadata = {
@@ -19,12 +22,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable} ${code.variable}`}>
+    <html lang="en" className={`${display.variable} ${serif.variable} ${code.variable}`}>
       <body>
+        <div className="awning" aria-hidden="true" />
         <header className="wrap site-header">
-          <a href="/" className="wordmark">
+          <Link href="/" className="wordmark">
             Cinequery
-          </a>
+          </Link>
           <SiteNav />
         </header>
         <main className="wrap">{children}</main>
