@@ -16,6 +16,7 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "db:ops": "tsx scripts/apply-sql.ts db/ops.sql",
+    "db:durable": "tsx scripts/apply-sql.ts db/durable.sql",
     "db:load": "tsx scripts/load-imdb.ts",
     "db:roles": "tsx scripts/setup-roles.ts",
     "mcp": "tsx src/mcp/stdio.ts",

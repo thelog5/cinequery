@@ -11,6 +11,8 @@ The app works with ordinary PostgreSQL connection strings, including Neon's pool
 
 Neon Free suspends compute after about five minutes without queries. Closing the app's connections does not suspend Neon immediately: the inactivity window still counts. A real question wakes it again, so the first answer after an idle period can take a little longer. Keeping a browser tab open does not keep it awake.
 
+Movie tables must use **LOGGED** storage. An old local dump can preserve UNLOGGED tables, whose rows disappear when Neon compute restarts. After restoring a dump, run `pnpm db:durable` with the target owner connection, then verify all four tables have `pg_class.relpersistence = 'p'`. This preserves their rows and constraints. The IMDb loader always uses logged tables and rejects the removed `--unlogged` flag. Keep scale to zero enabled; durable storage is what makes idle compute safe.
+
 ## Connect a Neon project
 
 1. Create a Free project near the region where the website will run. Keep scale to zero enabled and start with a fixed 0.25 CU compute rather than a larger compute.

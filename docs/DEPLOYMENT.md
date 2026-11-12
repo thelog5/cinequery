@@ -29,9 +29,14 @@ The existing local movie dataset was migrated to Neon on 2026-11-12; see [verifi
    pg_restore --dbname="$DATABASE_URL_ADMIN" --no-owner --no-acl \
      --exit-on-error --single-transaction \
      "$HOME/backups/cinequery/movies.dump"
+   # Dumps preserve UNLOGGED tables from the source. Make them durable now.
+   psql "$DATABASE_URL_ADMIN" -X -v ON_ERROR_STOP=1 -f db/durable.sql
+   # Refresh statistics and visibility maps after the bulk restore.
+   psql "$DATABASE_URL_ADMIN" -X -v ON_ERROR_STOP=1 \
+     -c 'VACUUM (ANALYZE) public.movies, public.ratings, public.people, public.credits;'
    ```
 
-   Stop on any error. Do not add `--clean`, restore over existing tables, or run `pnpm db:load`: the loader drops/recreates tables and fetches a different dataset. If a restore fails, investigate before retrying against an empty target. Never overwrite the retained local database.
+   Stop on any error. Do not add `--clean`, restore over existing tables, or run `pnpm db:load`: the loader drops/recreates tables and fetches a different dataset. If a restore fails, investigate before retrying against an empty target. Never overwrite the retained local database. The durability step is required: UNLOGGED movie tables lose their rows when Neon compute restarts. Run it immediately after restoring, before leaving the database idle. It preserves existing rows, permissions, indexes, and foreign keys.
 
 4. Generate separate strong passwords for `READER_PASSWORD` and `OPS_PASSWORD`, keep them local, then run:
 
@@ -42,7 +47,14 @@ The existing local movie dataset was migrated to Neon on 2026-11-12; see [verifi
 
    `cinequery_reader` gets SELECT access to the four movie tables. `cinequery_ops` gets SELECT/INSERT/UPDATE on `ops.requests` and sequence usage. Neither app connection should use the owner role. Verify privileges on the fresh target; never reuse an elevated role as an app role.
 
-5. Compare exact row counts on source and target for all four tables, and check indexes, foreign keys, and comments. For content verification, compare SHA-256 hashes of ordered `COPY (SELECT * FROM … ORDER BY …) TO STDOUT` output: order movies/ratings by `tconst`, people by `nconst`, and credits by `(tconst, ordering)`. Keep the source unchanged throughout comparison. Build the reader URL, then optionally run `pnpm eval:check-gold` against the target: it runs SQL only, consumes database compute, and does not call the model. Do not rerun saved model evaluations merely to deploy.
+5. Compare exact row counts on source and target for all four tables, and check indexes, foreign keys, comments, and persistence. The query below must return all four tables with `relpersistence = 'p'` (permanent/logged); `u` is unsafe. For content verification, compare SHA-256 hashes of ordered `COPY (SELECT * FROM … ORDER BY …) TO STDOUT` output: order movies/ratings by `tconst`, people by `nconst`, and credits by `(tconst, ordering)`. Keep the source unchanged throughout comparison. Build the reader URL, then optionally run `pnpm eval:check-gold` against the target: it runs SQL only, consumes database compute, and does not call the model. Do not rerun saved model evaluations merely to deploy.
+
+   ```sql
+   SELECT relname, relpersistence
+   FROM pg_class
+   WHERE relnamespace = 'public'::regnamespace
+     AND relname IN ('movies', 'ratings', 'people', 'credits');
+   ```
 
 ## 3. Set runtime secrets
 
@@ -81,5 +93,5 @@ Keep **Preview** credentials separate: use an isolated database/branch with fres
 - Open `/` and `/evals` (Accuracy): they should serve static/cached content and saved scores without a database or model request. Accuracy updates when reviewed JSON is committed and rebuilt, not through live evaluations.
 - Confirm missing production ops/salt configuration fails closed; check malformed JSON, the 4 KB body limit, origin checks, and generic public errors with non-billable tests. Test admission limits against a disposable local database rather than issuing repeated paid questions.
 - An end-to-end question uses the model and database; make that a deliberate owner-run smoke check only when ready for that usage. Verify reader/ops permissions and accounting before sharing the URL.
-- Add no polling, warm-up queries, cron jobs, automatic evals, or SQL-backed uptime monitors. Close SQL editors and other clients, wait at least five minutes after the last database query, and inspect Neon compute status. An open static page should not keep compute active; the next real question can have a cold start.
+- Add no polling, warm-up queries, cron jobs, automatic evals, or SQL-backed uptime monitors. Close SQL editors and other clients, wait at least five minutes after the last database query, and inspect Neon compute status. Reconnect once and verify that all four row counts survived; compare `pg_postmaster_start_time()` before and after to confirm a compute restart actually occurred. An open static page should not keep compute active; the next real question can have a cold start.
 - Keep the local backup until migration and permissions are verified. If abuse occurs, block `/api/ask` at the edge first, then rotate exposed credentials and redeploy. See [security guidance](../SECURITY.md).

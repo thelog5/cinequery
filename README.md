@@ -4,7 +4,7 @@
 
 https://github.com/user-attachments/assets/5c0f0127-aef6-40b1-b16d-9d601e8364d1
 
-Built by [Logan Li](https://www.linkedin.com/in/logan-li-9089b7216/) · [Saved evaluation results](evals/results/) · [Deployment guide](docs/DEPLOYMENT.md)
+Built by [Logan Li](https://www.linkedin.com/in/logan-li-9089b7216/) · [Try it live](https://cinequerymovie.vercel.app) · [Saved evaluation results](evals/results/) · [Deployment guide](docs/DEPLOYMENT.md)
 
 ## What it is
 
@@ -122,9 +122,8 @@ PostgreSQL · Recharts · Tailwind CSS · Node.js
 
 ## Status
 
-The demo above was recorded locally. The movie database has been migrated to
-Neon and verified against the local copy. The app is prepared for Vercel; a
-public deployment URL has not been added yet.
+The app is live on [Vercel](https://cinequerymovie.vercel.app), with the movie
+database hosted on Neon. The demo above was recorded locally.
 [Deployment steps](docs/DEPLOYMENT.md) cover migrating the existing dataset,
 setting up the restricted roles, and configuring the server-only secrets.
 

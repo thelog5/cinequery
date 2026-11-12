@@ -7,13 +7,12 @@
  * never needs local space.
  *
  * Usage:
- *   tsx scripts/load-imdb.ts [--min-votes 1000] [--slim] [--unlogged]
+ *   tsx scripts/load-imdb.ts [--min-votes 1000] [--slim]
  *
  *   --min-votes N  keep movies with at least N votes (PRD default 1000)
  *   --slim         Neon fallback from the PRD risk table: keep only directors,
  *                  writers, and the top 5 billed actors/actresses per movie
- *   --unlogged     create tables UNLOGGED (no WAL) — handy on a nearly-full
- *                  local disk; never use this on Neon
+ *   Tables always use durable LOGGED storage, including on Neon.
  *   --finish-only  skip the download and only run the post-load steps
  *                  (orphan cleanup, indexes, grants) — resumes a load that
  *                  failed at the index stage
@@ -29,19 +28,20 @@ import { env } from "../src/lib/env";
 
 const BASE_URL = "https://datasets.imdbws.com";
 const BATCH = 5000;
-// Postgres PANICs (and truncates UNLOGGED tables on restart) if the disk
-// fills, so stop well before that.
+// Stop before exhausting the disk during loading or index creation.
 const MIN_FREE_BYTES = 150 * 1024 * 1024;
 const SEP = "\u001f"; // unit separator: safe to join arrays that may contain commas
 
 // ---------------------------------------------------------------- args
 function parseArgs(argv: string[]) {
-  const opts = { minVotes: 1000, slim: false, unlogged: false, finishOnly: false };
+  const opts = { minVotes: 1000, slim: false, finishOnly: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--min-votes") opts.minVotes = Number(argv[++i]);
     else if (a === "--slim") opts.slim = true;
-    else if (a === "--unlogged") opts.unlogged = true;
+    else if (a === "--unlogged") {
+      throw new Error("--unlogged is no longer supported: movie data must survive database restarts.");
+    }
     else if (a === "--finish-only") opts.finishOnly = true;
     else throw new Error(`Unknown argument ${a}`);
   }
@@ -154,11 +154,6 @@ async function main() {
 async function loadTables(client: pg.Client, opts: ReturnType<typeof parseArgs>) {
   console.log("1/6 recreating tables");
   await client.query(await readFile("db/schema.sql", "utf8"));
-  if (opts.unlogged) {
-    for (const t of ["movies", "ratings", "people", "credits"]) {
-      await client.query(`ALTER TABLE ${t} SET UNLOGGED`);
-    }
-  }
 
   // --- ratings: the vote filter decides everything downstream ---------
   console.log("2/6 title.ratings.tsv.gz");
@@ -273,6 +268,8 @@ async function loadTables(client: pg.Client, opts: ReturnType<typeof parseArgs>)
 }
 
 async function finish(client: pg.Client) {
+  // Also repair persistence when resuming a load made by an older loader.
+  await client.query(await readFile("db/durable.sql", "utf8"));
   // A handful of principals reference people missing from name.basics;
   // drop those so the foreign key can be added.
   const orphans = await client.query(
