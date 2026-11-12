@@ -1,6 +1,6 @@
 # Deploy the saved dataset: local PostgreSQL → Neon → Vercel
 
-Neon is not connected and migration has not been performed. The local database is approximately 110 MB; saved evaluations already exist in `evals/results/v1.json` through `v4.json`. Preserve that dataset rather than downloading today's IMDb data. This guide takes precedence over the fresh-load shortcut in the README for this deployment. See also [idle-compute behavior](NEON.md).
+The existing local movie dataset was migrated to Neon on 2026-11-12; see [verification](NEON_MIGRATION.md). Runtime configuration for the owner's Vercel import is saved privately in `.env.vercel` and is ignored by Git. The local database remains intact. The steps below describe how to repeat the migration into an empty target. Preserve the evaluated dataset rather than downloading today's IMDb data. See also [idle-compute behavior](NEON.md).
 
 ## 1. Prepare without cloud usage
 
@@ -47,6 +47,8 @@ Neon is not connected and migration has not been performed. The local database i
 ## 3. Set runtime secrets
 
 Use Neon's **pooled** SSL URLs for the two app roles: hostnames contain `-pooler`; retain `sslmode=require` and other supplied SSL parameters. The app uses ordinary `pg`, so no Neon driver is needed. URL-encode passwords when assembling URLs. [Connection pooling](https://neon.com/docs/connect/connection-pooling).
+
+For the prepared deployment, import the private `.env.vercel` file into Vercel's **Production** environment, or enter its values individually. Do not import `.env.neon`: it contains owner/setup credentials. Neither file belongs in Git.
 
 Set these server-side values in the deployment's **Production** environment:
 

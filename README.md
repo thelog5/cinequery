@@ -40,7 +40,7 @@ flowchart LR
 
 1. **Data.** The loader filters IMDb's public datasets into four tables:
    movies, ratings, people, and credits. The saved run used **49,466 films,
-   330,144 people, and 983,681 credits**. Column comments explain units,
+   138,864 people, and 388,558 credits**. Column comments explain units,
    missing values, and how to join the tables.
 2. **Discovery through MCP.** The agent can list tables, read their schemas,
    search people and titles, and run SQL. It discovers the data through tools
@@ -122,8 +122,9 @@ PostgreSQL · Recharts · Tailwind CSS · Node.js
 
 ## Status
 
-The demo above was recorded locally. The app is prepared for Vercel with a
-Neon PostgreSQL database; a public deployment URL has not been added yet.
+The demo above was recorded locally. The movie database has been migrated to
+Neon and verified against the local copy. The app is prepared for Vercel; a
+public deployment URL has not been added yet.
 [Deployment steps](docs/DEPLOYMENT.md) cover migrating the existing dataset,
 setting up the restricted roles, and configuring the server-only secrets.
 
