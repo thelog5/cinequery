@@ -1,0 +1,14 @@
+.git
+.next
+node_modules
+.vercel
+.env
+.env.*
+data
+backups
+*.dump
+*.sql.gz
+coverage
+*.log
+*.tsbuildinfo
+evals/results/scratch
