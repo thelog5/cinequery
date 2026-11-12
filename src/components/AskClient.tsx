@@ -40,7 +40,8 @@ function describeInput(name: string, input: unknown): string {
   if (name === "describe_table") return i.table ?? "";
   if (name === "search_people") return `“${i.name ?? ""}”`;
   if (name === "search_titles") return `“${i.title ?? ""}”`;
-  if (name === "run_query" || name === "submit_answer") return (i.sql ?? "").replace(/\s+/g, " ").slice(0, 120);
+  if (name === "run_query" || name === "submit_answer")
+    return (i.sql ?? "").replace(/\s+/g, " ").slice(0, 120);
   return "";
 }
 
@@ -49,28 +50,19 @@ function tidySummary(summary: string) {
   return summary.replace(/ in \d+ ms$/, "").replace(/^final query: /, "");
 }
 
-/** A kernel per agent step: unpopped while it runs, popped when it succeeds, scorched when it fails. */
-function Kernel({ status }: { status: Status }) {
-  if (status === "ok") {
-    return (
-      <svg key="ok" className="kernel kernel-popped" viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="7.5" cy="13" r="4.6" />
-        <circle cx="12.5" cy="8.6" r="5.2" />
-        <circle cx="17" cy="13.4" r="4.4" />
-        <circle cx="11.8" cy="15.6" r="4.8" />
-        <path className="kernel-hull" d="M10 19.4c1.2 1.1 3 1.1 4.2 0l-.5 2.1h-3.2z" />
-      </svg>
-    );
-  }
+function StepStatus({ status }: { status: Status }) {
   return (
-    <svg key={status} className={`kernel kernel-${status === "error" ? "burnt" : "raw"}`} viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 3.5c3.6 3.1 5.6 6.6 5.6 10.1a5.6 5.6 0 0 1-11.2 0c0-3.5 2-7 5.6-10.1Z" />
-      <path className="kernel-shine" d="M10 10.5c.5-1.6 1.3-3 2.4-4.2" />
-    </svg>
+    <span className={`step-status step-status-${status}`} aria-hidden="true">
+      {status === "ok" ? "✓" : status === "error" ? "×" : "◌"}
+    </span>
   );
 }
 
-const STATUS_TEXT: Record<Status, string> = { running: "In progress", ok: "Done", error: "Failed" };
+const STATUS_TEXT: Record<Status, string> = {
+  running: "In progress",
+  ok: "Done",
+  error: "Failed",
+};
 
 export function AskClient() {
   const [question, setQuestion] = useState("");
@@ -79,27 +71,72 @@ export function AskClient() {
   const [result, setResult] = useState<AgentRunResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const scrollToQuery = useRef(false);
 
-  // Grow the marquee to fit the question instead of scrolling inside it.
+  // Grow the input to fit the question instead of scrolling inside it.
   useLayoutEffect(() => {
     const el = inputRef.current;
     if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
+    const resize = () => {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
   }, [question]);
+
+  // Scroll after React fills and resizes the input so the destination is stable.
+  useLayoutEffect(() => {
+    if (!busy || !scrollToQuery.current) return;
+    scrollToQuery.current = false;
+    inputRef.current?.focus({ preventScroll: true });
+    formRef.current?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+      block: "start",
+    });
+  }, [busy, question]);
+
+  function askExample(q: string) {
+    if (busy) return;
+    scrollToQuery.current = true;
+    void ask(q);
+  }
 
   function handleEvent(e: AgentEvent) {
     if (e.type === "tool_call") {
-      setTrace((t) => [...t, { id: e.id, name: e.name, detail: describeInput(e.name, e.input), status: "running" }]);
+      setTrace((t) => [
+        ...t,
+        {
+          id: e.id,
+          name: e.name,
+          detail: describeInput(e.name, e.input),
+          status: "running",
+        },
+      ]);
     } else if (e.type === "tool_result") {
       setTrace((t) =>
         t.map((item) =>
-          item.id === e.id ? { ...item, status: e.ok ? "ok" : "error", ms: e.ms, summary: tidySummary(e.summary) } : item,
+          item.id === e.id
+            ? {
+                ...item,
+                status: e.ok ? "ok" : "error",
+                ms: e.ms,
+                summary: tidySummary(e.summary),
+              }
+            : item,
         ),
       );
     } else if (e.type === "result") {
       if (e.result.status === "ok") setResult(e.result);
-      else setError(e.result.error ?? "The agent couldn't answer that one. Try rewording the question.");
+      else
+        setError(
+          e.result.error ??
+            "The agent couldn't answer that one. Try rewording the question.",
+        );
     }
   }
 
@@ -144,7 +181,9 @@ export function AskClient() {
         }
       }
     } catch {
-      setError("Lost the connection to the server. Check your network and ask again.");
+      setError(
+        "Lost the connection to the server. Check your network and ask again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -152,84 +191,172 @@ export function AskClient() {
 
   const asked = busy || trace.length > 0 || result !== null || error !== null;
 
+  const features = [
+    {
+      title: "Which Nolan film is rated highest?",
+      category: "Directors & ratings",
+      image: "/images/interstellar.jpg",
+      description: "Compare Christopher Nolan’s films by IMDb rating.",
+      index: 0,
+    },
+    {
+      title: "Are movies getting longer?",
+      category: "Runtime trends",
+      image: "/images/cinema.jpg",
+      description: "See how average runtime has changed by decade since 1950.",
+      index: 1,
+    },
+    {
+      title: "Which genres are rated highest?",
+      category: "Genre comparisons",
+      image: "/images/space.jpg",
+      description:
+        "Compare average ratings for films with at least 100,000 votes.",
+      index: 4,
+    },
+  ];
+
   const examples = (
     <section className="examples" aria-labelledby="examples-title">
-      <h2 id="examples-title" className="minor-title">
-        {asked ? "Ask another" : "Or try one of these"}
-      </h2>
-      <ul>
-        {EXAMPLE_QUESTIONS.map((q) => (
-          <li key={q}>
-            <button type="button" disabled={busy} onClick={() => ask(q)}>
-              {q}
-            </button>
-          </li>
+      <div className="section-heading">
+        <h2 id="examples-title" className="section-title">
+          {asked ? "Ask another question" : "Try an example question"}
+        </h2>
+        <span className="eyebrow">Click a card to ask ↙</span>
+      </div>
+      <p className="examples-instruction">
+        Click a card to run its question, or type your own above.
+      </p>
+      <div className="story-grid">
+        {features.map((f, i) => (
+          <button
+            className="story-card"
+            aria-label={`Ask: ${EXAMPLE_QUESTIONS[f.index]}`}
+            key={f.title}
+            type="button"
+            disabled={busy}
+            onClick={() => askExample(EXAMPLE_QUESTIONS[f.index])}
+          >
+            <div className="story-image">
+              <img src={f.image} alt="" loading="lazy" />
+              <span className="story-arrow" aria-hidden="true">
+                ↗
+              </span>
+            </div>
+            <span className="story-category">
+              0{i + 1} / {f.category}
+            </span>
+            <h3>{f.title}</h3>
+            <p>{f.description}</p>
+            <span className="story-cta">
+              Ask this question <span aria-hidden="true">↗</span>
+            </span>
+          </button>
         ))}
-      </ul>
+      </div>
+      <div className="more-questions">
+        <span className="eyebrow">More examples</span>
+        {[2, 3].map((i) => (
+          <button
+            type="button"
+            key={i}
+            disabled={busy}
+            onClick={() => askExample(EXAMPLE_QUESTIONS[i])}
+          >
+            {i === 2
+              ? "Ask: Which directors have six highly rated films?"
+              : "Ask: Which horror films are rated 8.0 or higher?"}
+            <span aria-hidden="true">↗</span>
+          </button>
+        ))}
+      </div>
     </section>
   );
 
   return (
     <>
       <form
+        ref={formRef}
         className="ask"
+        aria-busy={busy}
         onSubmit={(e) => {
           e.preventDefault();
           ask(question);
         }}
       >
-        <div className="marquee" data-busy={busy}>
-          <div className="marquee-sign">
-            <label htmlFor="question" className="sr-only">
-              Your movie question
-            </label>
+        <div className="ask-label">
+          <label htmlFor="question">Your movie question</label>
+          <span>Type a question, then click Ask.</span>
+        </div>
+        <div className="query-box" data-busy={busy}>
+          <svg
+            className="search-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            aria-hidden="true"
+          >
+            <circle cx="10.5" cy="10.5" r="6.5" />
+            <path d="m16 16 5 5" />
+          </svg>
+          <div className="query-input-wrap">
             <textarea
               id="question"
               ref={inputRef}
-              className="marquee-input"
+              className="query-input"
               data-long={question.length > 70}
               rows={1}
               value={question}
               onChange={(e) => setQuestion(e.target.value.replace(/\n/g, " "))}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                if (
+                  e.key === "Enter" &&
+                  !e.shiftKey &&
+                  !e.nativeEvent.isComposing
+                ) {
                   e.preventDefault();
                   e.currentTarget.form?.requestSubmit();
                 }
               }}
-              placeholder="Which Nolan film is rated highest?"
+              placeholder="Which Christopher Nolan film is rated highest?"
               maxLength={300}
               autoComplete="off"
               spellCheck={false}
               readOnly={busy}
             />
           </div>
-        </div>
-        <div className="ask-actions">
           <button className="btn-ask" type="submit" disabled={busy}>
-            {busy ? "Asking…" : "Ask"}
+            {busy ? "Querying…" : "Ask question"}{" "}
+            <span aria-hidden="true">↗</span>
           </button>
         </div>
+        <p className="query-footnote">
+          <span>IMDb feature films with 1,000+ votes</span>
+          <span>Includes results and SQL.</span>
+        </p>
       </form>
-
-      {!asked && examples}
 
       {trace.length > 0 && (
         <section className="trace" aria-labelledby="trace-title">
           <h2 id="trace-title" className="minor-title">
-            Behind the scenes
+            Query progress
           </h2>
           <ol aria-live="polite">
             {trace.map((t) => (
               <li key={t.id} data-status={t.status}>
-                <Kernel status={t.status} />
+                <StepStatus status={t.status} />
                 <span className="sr-only">{STATUS_TEXT[t.status]}:</span>
                 <span className="trace-step">{stepLabel(t)}</span>
                 <span className="trace-body">
                   {t.detail && <code>{t.detail}</code>}
-                  {t.summary && <span className="trace-summary">{t.summary}</span>}
+                  {t.summary && (
+                    <span className="trace-summary">{t.summary}</span>
+                  )}
                 </span>
-                <span className="trace-ms">{t.ms !== undefined ? `${t.ms} ms` : ""}</span>
+                <span className="trace-ms">
+                  {t.ms !== undefined ? `${t.ms} ms` : ""}
+                </span>
               </li>
             ))}
           </ol>
@@ -244,21 +371,34 @@ export function AskClient() {
 
       {result && (
         <section className="screen" aria-labelledby="answer-title">
-          <h2 id="answer-title" className="sr-only">
-            Answer
+          <h2 id="answer-title" className="eyebrow result-label">
+            Your answer <span aria-hidden="true">↘</span>
           </h2>
           <p className="answer">{result.answer}</p>
           <ResultChart spec={result.chart} rows={result.rows} />
           <SqlBlock sql={result.sql} />
           <RowsTable columns={result.columns} rows={result.rows} />
           <p className="screen-meta">
-            Answered in {(result.latencyMs / 1000).toFixed(1)} seconds with {result.toolCalls.length} tool calls by
-            agent {result.version}.
+            Answered in {(result.latencyMs / 1000).toFixed(1)} seconds with{" "}
+            {result.toolCalls.length} tool calls by agent {result.version}.
           </p>
         </section>
       )}
 
-      {asked && !busy && examples}
+      <figure className="feature-film">
+        <img
+          src="/images/interstellar.jpg"
+          alt="An explorer on an icy planet in Interstellar"
+          fetchPriority="high"
+        />
+        <figcaption>
+          <span>
+            In the frame: <em>Interstellar</em> (2014) · Christopher Nolan
+          </span>
+        </figcaption>
+      </figure>
+
+      {examples}
     </>
   );
 }

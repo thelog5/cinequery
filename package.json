@@ -2,15 +2,17 @@
   "name": "cinequery",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
+  "packageManager": "pnpm@10.27.0",
   "description": "Ask movie questions in plain English; get an answer, a chart, and the SQL behind it.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": "24.x"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --port 3100",
     "build": "next build",
-    "start": "next start",
+    "start": "next start --port 3100",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "db:ops": "tsx scripts/apply-sql.ts db/ops.sql",

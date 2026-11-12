@@ -12,14 +12,15 @@ Ask movie questions in plain English. Get an answer, a chart, and the SQL behind
 ## Eval results
 
 <!-- evals:start -->
-_No eval runs recorded yet (100 questions ready)._
+| Version | Change | Overall | Single table | Joins | Aggregation | Name ambiguity | Trends over time | Tool calls | Median latency | Median cost |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v1 | list_tables, describe_table, run_query only | **77%** (77/100) | 80% | 65% | 80% | 80% | 80% | 4.3 | 5.3 s | $0.001 |
+| v2 | Column comments and sample rows in describe_table | **79%** (79/100) | 85% | 70% | 80% | 80% | 80% | 4.0 | 5.0 s | $0.001 |
+| v3 | Add search_people and search_titles | **77%** (77/100) | 90% | 55% | 85% | 80% | 75% | 3.7 | 4.8 s | $0.001 |
+| v4 | 3 worked examples in the system prompt | **82%** (82/100) | 90% | 70% | 85% | 85% | 80% | 2.9 | 4.6 s | $0.001 |
 
-| Version | Change | Score |
-|---|---|---|
-| v1 | list_tables, describe_table, run_query only | not run yet |
-| v2 | Column comments and sample rows in describe_table | not run yet |
-| v3 | Add search_people and search_titles | not run yet |
-| v4 | 3 worked examples in the system prompt | not run yet |
+Model: claude-haiku-5-5, effort medium. 100 questions, 20 per category.
+Biggest single change: v3 → v4 (+5 points), from "3 worked examples in the system prompt".
 <!-- evals:end -->
 
 Each version changes exactly one thing, so each score delta has a single cause. If a version made things worse, it stays in the table.
@@ -78,7 +79,7 @@ flowchart LR
 
 ## Running locally
 
-Requires Node 20+, pnpm, and Postgres 16+ with `pg_trgm` (Postgres.app works).
+Requires Node 24, pnpm 10.27.0, and Postgres 16+ with `pg_trgm` (Postgres.app works).
 
 ```bash
 pnpm install
@@ -92,16 +93,21 @@ pnpm eval:check-gold            # all 100 gold queries should be healthy
 
 pnpm test                       # unit + integration tests (integration needs the DB)
 pnpm ask "Who directed Heat?"   # one question from the terminal, with the tool trace
-pnpm dev                        # http://localhost:3000
+pnpm dev                        # http://localhost:3100
 ```
 
 Loader flags: `--min-votes N` (default 1000), `--slim` (keep only directors, writers, and the top 5 billed cast: the PRD's fallback if the data outgrows Neon's free tier), `--unlogged` (no WAL, for a tight local disk), `--finish-only` (resume at the index step).
 
 ## Deploying
 
-1. **Neon.** Create a project, then run the loader against it with `DATABASE_URL_ADMIN` set to the owner connection string. Run `pnpm db:load && pnpm db:ops && pnpm db:roles`.
-2. **Anthropic.** Create an API key in its own workspace and set a monthly spend limit on that workspace.
-3. **Vercel.** Import the repo and set `DATABASE_URL_READONLY`, `DATABASE_URL_OPS`, `ANTHROPIC_API_KEY`, `CINEQUERY_MODEL`, `DAILY_SPEND_CAP_USD`, and `IP_HASH_SALT`. Never set `DATABASE_URL_ADMIN` on Vercel. `/api/ask` sets `maxDuration = 120`.
+Follow the [complete Neon → Vercel deployment steps](docs/DEPLOYMENT.md), including the exact database migration commands and environment-variable table.
+
+1. Create a **Neon Free** project with a fixed 0.25 CU compute and scale to zero enabled. Copy the existing movie dataset with `pg_dump`/`pg_restore` into an empty target, so the saved accuracy results still describe the data. Initialize the ops schema and least-privilege reader/ops roles with local-only admin credentials.
+2. Import the reviewed GitHub repository into **Vercel**, using Node 24, `pnpm install --frozen-lockfile`, and `pnpm build`. Do not run data loading or evaluations in a build.
+3. Set the pooled SSL reader/ops URLs, model API key, private IP salt, and spending/rate limits as server-only Production variables. Never deploy the owner database URL or setup passwords. Keep Preview credentials isolated from Production.
+4. Add the included Vercel Firewall protections for `/api/ask`, verify a question deliberately, and confirm Neon suspends after idle time. Browsing the static homepage or saved Accuracy page does not query the database.
+
+See [Neon idle-compute behavior](docs/NEON.md) and [security controls and limitations](SECURITY.md). Original code is [MIT-licensed](LICENSE); [third-party terms](THIRD_PARTY_NOTICES.md) apply separately, including IMDb's non-commercial data terms.
 
 ## Using the MCP server in Claude Code or Claude Desktop
 
@@ -150,9 +156,9 @@ pnpm eval:all                                  # v1-v4, then refresh the README 
 |---|---|
 | Movies and credits loaded | 49,466 movies, 330,144 people, 983,681 credits (full load, 1,000+ votes) |
 | Eval questions | 100 (20 × 5 categories) |
-| Accuracy v1 to final | _pending eval runs_ |
-| Biggest single jump and what caused it | _pending eval runs_ |
-| Median latency and cost per question | _pending eval runs_ |
+| Accuracy v1 to final | 77% → 82% (100 questions each, Haiku 5.5) |
+| Biggest single jump and what caused it | v3 → v4: +5 points; 3 worked examples in the system prompt |
+| Median latency and cost per question | v4: 4.6 s · $0.00093 |
 
 ## Project layout
 

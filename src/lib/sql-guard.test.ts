@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { UnsafeSqlError, assertReadOnlySql, scrubSql, wrapWithLimit } from "./sql-guard";
+import {
+  UnsafeSqlError,
+  assertReadOnlySql,
+  scrubSql,
+  wrapWithLimit,
+} from "./sql-guard";
 
 describe("assertReadOnlySql", () => {
   it.each([
@@ -24,6 +29,12 @@ describe("assertReadOnlySql", () => {
     ["WITH d AS (DELETE FROM movies RETURNING *) SELECT * FROM d", /DELETE/],
     ["SELECT * INTO copy_of_movies FROM movies", /INTO/],
     ["SELECT pg_sleep(10)", /pg_sleep/],
+    ['SELECT "pg_sleep"(10)', /pg_sleep/],
+    ['SELECT "pg_catalog"."pg_sleep" /* hidden */ (10)', /pg_sleep/],
+    ['SELECT U&"pg_\\0073leep"(10)', /Unicode/],
+    ["SELECT pg_advisory_xact_lock(1)", /advisory/],
+    ["SELECT pg_try_advisory_lock(1)", /advisory/],
+    ["SELECT pg_sleep_until(now())", /pg_sleep/],
     ["SELECT pg_read_file('/etc/passwd')", /pg_read_file/],
     ["SELECT * FROM movies FOR UPDATE", /UPDATE/],
     ["SELECT set_config('statement_timeout', '0', false)", /set_config|SET/],
@@ -41,7 +52,9 @@ describe("assertReadOnlySql", () => {
 
 describe("scrubSql", () => {
   it("removes comments and string contents", () => {
-    expect(scrubSql("SELECT 'a;b' -- c;\n/* d; */ FROM x")).toBe("SELECT ''  \n  FROM x");
+    expect(scrubSql("SELECT 'a;b' -- c;\n/* d; */ FROM x")).toBe(
+      "SELECT ''  \n  FROM x",
+    );
   });
 
   it("handles dollar-quoted strings", () => {

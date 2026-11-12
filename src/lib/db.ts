@@ -7,6 +7,7 @@
  * pooler such as Neon's, where session-level SETs would leak between clients.
  */
 import pg from "pg";
+import { createAppPool } from "./app-pool";
 import { env } from "./env";
 import { MAX_ROWS, UnsafeSqlError, assertReadOnlySql, wrapWithLimit } from "./sql-guard";
 
@@ -21,15 +22,7 @@ let pool: pg.Pool | null = null;
 
 export function getReadonlyPool(): pg.Pool {
   if (!pool) {
-    pool = new pg.Pool({
-      connectionString: env.readonlyDatabaseUrl(),
-      max: 5,
-      idleTimeoutMillis: 10_000,
-      // Client-side backstop in case the server-side timeout is ever bypassed.
-      query_timeout: STATEMENT_TIMEOUT_MS + 2_000,
-    });
-    // Neon closes idle connections; without a listener that error crashes the process.
-    pool.on("error", (err) => console.error("readonly pool: idle client error", err.message));
+    pool = createAppPool(env.readonlyDatabaseUrl(), "reader");
   }
   return pool;
 }

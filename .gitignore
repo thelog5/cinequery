@@ -18,6 +18,11 @@ next-env.d.ts
 coverage/
 .vercel
 *.tsbuildinfo
+*.dump
+*.sql.gz
+backups/
+.neon/
+.neon.json
 
 # local data caches (IMDb TSVs are streamed, never stored, but just in case)
 data/

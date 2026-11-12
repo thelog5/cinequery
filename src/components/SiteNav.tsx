@@ -3,23 +3,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const LINKS = [
-  { href: "/", label: "Ask" },
-  { href: "/evals", label: "Evals" },
-];
-
 export function SiteNav() {
   const pathname = usePathname();
   return (
     <nav className="site-nav" aria-label="Main">
-      {LINKS.map((l) => (
-        <Link key={l.href} href={l.href} aria-current={pathname === l.href ? "page" : undefined}>
-          {l.label}
-        </Link>
-      ))}
-      <a href="https://github.com/thelog5/cinequery" rel="noopener">
-        GitHub
-      </a>
+      <Link href="/" aria-current={pathname === "/" ? "page" : undefined}>
+        Ask a question
+      </Link>
+      <Link
+        href="/evals"
+        aria-current={pathname === "/evals" ? "page" : undefined}
+      >
+        Accuracy
+      </Link>
+      <Link href="/#how-it-works">
+        How it works <span aria-hidden="true">↗</span>
+      </Link>
     </nav>
   );
 }

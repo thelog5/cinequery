@@ -29,7 +29,9 @@ export type EvalQuestion = z.infer<typeof QuestionSchema>;
 export const QUESTIONS_PATH = join(process.cwd(), "evals", "questions.jsonl");
 
 export function loadQuestions(path = QUESTIONS_PATH): EvalQuestion[] {
-  const lines = readFileSync(path, "utf8").split("\n");
+  // The default file is explicitly included by next.config.ts; custom paths
+  // belong to CLI evaluations and must not trace the whole checkout at build time.
+  const lines = readFileSync(/* turbopackIgnore: true */ path, "utf8").split("\n");
   const questions: EvalQuestion[] = [];
   const seen = new Set<string>();
   lines.forEach((line, i) => {

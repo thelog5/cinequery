@@ -74,7 +74,7 @@ const FORBIDDEN_FUNCTIONS = [
  * Remove comments and the contents of string literals / quoted identifiers so
  * keyword scanning only sees real SQL tokens. Returns the scrubbed text.
  */
-export function scrubSql(sql: string): string {
+export function scrubSql(sql: string, preserveIdentifiers = false): string {
   let out = "";
   let i = 0;
   while (i < sql.length) {
@@ -99,10 +99,19 @@ export function scrubSql(sql: string): string {
       i++;
       out += "''";
     } else if (ch === '"') {
+      let identifier = '"';
       i++;
-      while (i < sql.length && sql[i] !== '"') i++;
-      i++;
-      out += '"q"';
+      while (i < sql.length) {
+        if (sql[i] === '"' && sql[i + 1] === '"') {
+          identifier += '""';
+          i += 2;
+        } else if (sql[i] === '"') {
+          identifier += '"';
+          i++;
+          break;
+        } else identifier += sql[i++];
+      }
+      out += preserveIdentifiers ? identifier : '"q"';
     } else if (ch === "$") {
       // dollar-quoted string: $tag$ ... $tag$
       const m = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(i));
@@ -137,7 +146,9 @@ export function assertReadOnlySql(sql: string): string {
 
   const scrubbed = scrubSql(sql).trim().replace(/;\s*$/, "");
   if (scrubbed.includes(";")) {
-    throw new UnsafeSqlError("Only one statement is allowed; remove the extra semicolon.");
+    throw new UnsafeSqlError(
+      "Only one statement is allowed; remove the extra semicolon.",
+    );
   }
 
   const firstWord = scrubbed.match(/^\(*\s*([A-Za-z]+)/)?.[1]?.toLowerCase();
@@ -145,19 +156,43 @@ export function assertReadOnlySql(sql: string): string {
     throw new UnsafeSqlError("Only SELECT or WITH queries are allowed.");
   }
 
-  const words = new Set(scrubbed.toLowerCase().match(/[a-z_][a-z0-9_]*/g) ?? []);
+  const words = new Set(
+    scrubbed.toLowerCase().match(/[a-z_][a-z0-9_]*/g) ?? [],
+  );
   for (const kw of FORBIDDEN) {
     if (words.has(kw)) {
-      throw new UnsafeSqlError(`"${kw.toUpperCase()}" is not allowed: queries must be read-only.`);
+      throw new UnsafeSqlError(
+        `"${kw.toUpperCase()}" is not allowed: queries must be read-only.`,
+      );
     }
   }
+  // Quoting a function name must not hide it from the safety check.
+  // Keep ordinary quoted column aliases out of the keyword check above.
+  const functionSql = scrubSql(sql, true);
+  if (/\bu&\s*"/i.test(functionSql)) {
+    throw new UnsafeSqlError("Unicode-escaped identifiers are not supported.");
+  }
+  const functionWords = new Set(
+    functionSql.toLowerCase().match(/[a-z_][a-z0-9_]*/g) ?? [],
+  );
   for (const fn of FORBIDDEN_FUNCTIONS) {
-    if (words.has(fn)) {
+    if (functionWords.has(fn)) {
       throw new UnsafeSqlError(`Function ${fn}() is not allowed.`);
     }
   }
-  if (/\bfor\s+(update|share|no\s+key\s+update|key\s+share)\b/i.test(scrubbed)) {
-    throw new UnsafeSqlError("Row locking clauses (FOR UPDATE/SHARE) are not allowed.");
+  for (const fn of functionWords) {
+    if (
+      /^pg_(?:(?:try_)?advisory_|sleep(?:_|$)|logical_emit_message$)/.test(fn)
+    ) {
+      throw new UnsafeSqlError(`Function ${fn}() is not allowed.`);
+    }
+  }
+  if (
+    /\bfor\s+(update|share|no\s+key\s+update|key\s+share)\b/i.test(scrubbed)
+  ) {
+    throw new UnsafeSqlError(
+      "Row locking clauses (FOR UPDATE/SHARE) are not allowed.",
+    );
   }
 
   return sql.trim().replace(/;\s*$/, "");

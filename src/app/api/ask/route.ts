@@ -9,16 +9,18 @@ import { runAgent } from "@/agent/run";
 import type { AgentEvent, AgentRunResult } from "@/agent/types";
 import { getVersion } from "@/agent/versions";
 import { admitRequest, clientIp, hashIp, recordOutcome } from "@/lib/abuse";
+import { parseAskRequest } from "@/lib/ask-request";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // Agent loops with several tool calls can take 30-60 s; raise the default.
 export const maxDuration = 120;
 
-const MIN_LEN = 3;
-const MAX_LEN = 300;
-
-function jsonError(status: number, error: string, headers: Record<string, string> = {}) {
+function jsonError(
+  status: number,
+  error: string,
+  headers: Record<string, string> = {},
+) {
   return Response.json({ error }, { status, headers });
 }
 
@@ -27,22 +29,34 @@ async function finalize(requestId: number | null, result: AgentRunResult) {
     status: result.status,
     costUsd: result.costUsd,
     inputTokens:
-      result.usage.input_tokens + result.usage.cache_creation_input_tokens + result.usage.cache_read_input_tokens,
+      result.usage.input_tokens +
+      result.usage.cache_creation_input_tokens +
+      result.usage.cache_read_input_tokens,
     outputTokens: result.usage.output_tokens,
     latencyMs: result.latencyMs,
   });
 }
 
+async function recordFailure(requestId: number | null) {
+  await recordOutcome(requestId, {
+    status: "error",
+    costUsd: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    latencyMs: 0,
+  });
+}
+
 export async function POST(req: Request) {
-  let body: { question?: unknown; stream?: unknown };
+  const body = await parseAskRequest(req);
+  if (body instanceof Response) return body;
+  const { question } = body;
+
+  let version;
   try {
-    body = await req.json();
+    version = getVersion(process.env.CINEQUERY_AGENT_VERSION);
   } catch {
-    return jsonError(400, "Send JSON like {\"question\": \"...\"}.");
-  }
-  const question = typeof body.question === "string" ? body.question.trim() : "";
-  if (question.length < MIN_LEN || question.length > MAX_LEN) {
-    return jsonError(400, `Ask a question between ${MIN_LEN} and ${MAX_LEN} characters long.`);
+    return jsonError(503, "Cinequery is temporarily unavailable.");
   }
 
   let admit;
@@ -51,18 +65,34 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("rate limiter unavailable", err);
     // Fail closed: without the limiter we can't protect the API budget.
-    return jsonError(503, "Cinequery is temporarily unavailable. Please try again shortly.");
+    return jsonError(
+      503,
+      "Cinequery is temporarily unavailable. Please try again shortly.",
+    );
   }
   if (!admit.ok) {
-    return jsonError(admit.status, admit.reason, admit.retryAfterSec ? { "Retry-After": String(admit.retryAfterSec) } : {});
+    return jsonError(
+      admit.status,
+      admit.reason,
+      admit.retryAfterSec ? { "Retry-After": String(admit.retryAfterSec) } : {},
+    );
   }
 
-  const version = getVersion(process.env.CINEQUERY_AGENT_VERSION);
-
   if (body.stream !== true) {
-    const result = await runAgent({ question, version });
-    await finalize(admit.requestId, result);
-    return Response.json(result, { status: result.status === "ok" ? 200 : 502 });
+    try {
+      const result = await runAgent({ question, version });
+      await finalize(admit.requestId, result);
+      return Response.json(result, {
+        status: result.status === "ok" ? 200 : 502,
+        headers: { "Cache-Control": "no-store" },
+      });
+    } catch {
+      await recordFailure(admit.requestId);
+      return jsonError(
+        502,
+        "The question could not be completed. Please try again.",
+      );
+    }
   }
 
   const encoder = new TextEncoder();
@@ -80,11 +110,19 @@ export async function POST(req: Request) {
         }
       };
       try {
-        const result = await runAgent({ question, version, onEvent: (event: AgentEvent) => write(event) });
+        const result = await runAgent({
+          question,
+          version,
+          onEvent: (event: AgentEvent) => write(event),
+        });
         await finalize(admit.requestId, result);
       } catch (err) {
         console.error("agent crashed", err);
-        write({ type: "error", error: "Something went wrong. Try asking again." });
+        await recordFailure(admit.requestId);
+        write({
+          type: "error",
+          error: "Something went wrong. Try asking again.",
+        });
       } finally {
         if (open) {
           open = false;

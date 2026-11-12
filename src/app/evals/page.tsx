@@ -1,14 +1,26 @@
 import type { Metadata } from "next";
 import { AGENT_VERSIONS } from "@/agent/versions";
 import { EvalsChart } from "@/components/EvalsChart";
-import { biggestJump, loadOtherModelRuns, loadVersionRuns } from "@/lib/eval-results";
+import {
+  biggestJump,
+  loadOtherModelRuns,
+  loadVersionRuns,
+} from "@/lib/eval-results";
 import { DEFAULT_MODEL } from "@/lib/env";
-import { CATEGORIES, CATEGORY_LABELS, loadQuestions } from "../../../evals/questions";
+import {
+  CATEGORIES,
+  CATEGORY_LABELS,
+  loadQuestions,
+} from "../../../evals/questions";
 import type { EvalRun } from "../../../evals/types";
 
+// Serve saved JSON results without waking the movie database.
+export const dynamic = "force-static";
+
 export const metadata: Metadata = {
-  title: "Evals · Cinequery",
-  description: "Accuracy of each Cinequery agent version on 100 hand-written movie questions.",
+  title: "Accuracy · Cinequery",
+  description:
+    "Accuracy of each Cinequery agent version on 100 hand-written movie questions.",
 };
 
 const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
@@ -59,7 +71,9 @@ function VersionTable({ runs }: { runs: EvalRun[] }) {
             <tr key={`${r.version}-${r.model}`}>
               <th scope="row">
                 {r.version}
-                {r.model !== DEFAULT_MODEL && <div className="meta">{r.model}</div>}
+                {r.model !== DEFAULT_MODEL && (
+                  <div className="meta">{r.model}</div>
+                )}
               </th>
               <td className="change">{r.change}</td>
               <ScoreCell value={r.accuracy} />
@@ -100,12 +114,25 @@ function PerQuestion({ runs }: { runs: EvalRun[] }) {
             {questions.map((q) => (
               <tr key={q.id}>
                 <td>{q.id}</td>
-                <td style={{ whiteSpace: "normal", minWidth: 280 }}>{q.question}</td>
+                <td style={{ whiteSpace: "normal", minWidth: 280 }}>
+                  {q.question}
+                </td>
                 {byVersion.map((m, i) => {
                   const res = m.get(q.id);
                   return (
-                    <td key={runs[i].version} title={res && !res.pass ? res.error ?? res.reason : undefined}>
-                      {!res ? "–" : res.pass ? <span className="badge-pass">pass</span> : <span className="badge-fail">fail</span>}
+                    <td
+                      key={runs[i].version}
+                      title={
+                        res && !res.pass ? (res.error ?? res.reason) : undefined
+                      }
+                    >
+                      {!res ? (
+                        "–"
+                      ) : res.pass ? (
+                        <span className="badge-pass">pass</span>
+                      ) : (
+                        <span className="badge-fail">fail</span>
+                      )}
                     </td>
                   );
                 })}
@@ -128,10 +155,17 @@ export default function EvalsPage() {
 
   return (
     <>
-      <h1 className="page-title">Did the agent get better?</h1>
+      <div className="eyebrow evals-eyebrow">
+        <span className="red-dot" /> Accuracy / Agent evaluations
+      </div>
+      <h1 className="page-title evals-title">
+        How accurate
+        <br /> <em>are the answers?</em>
+      </h1>
       <p className="lede">
-        Each version changes one thing about the agent. All of them answer the same {total} hand-written questions, and
-        every answer is checked against the result of a gold SQL query.
+        Each version changes one thing about the agent. All of them answer the
+        same {total} hand-written questions, and every answer is checked against
+        the result of a gold SQL query.
       </p>
 
       {runs.length === 0 ? (
@@ -140,7 +174,8 @@ export default function EvalsPage() {
             No scores yet
           </h2>
           <p className="prose">
-            Scores appear here once each version has answered all {total} questions. This is what each version changes:
+            Scores appear here once each version has answered all {total}{" "}
+            questions. This is what each version changes:
           </p>
           <div className="table-scroll">
             <table className="evals-table">
@@ -155,14 +190,16 @@ export default function EvalsPage() {
             </table>
           </div>
           <p className="meta">
-            To record a run, use <code>pnpm eval --version v1</code> and commit the files in <code>evals/results/</code>.
+            To record a run, use <code>pnpm eval --version v1</code> and commit
+            the files in <code>evals/results/</code>.
           </p>
         </section>
       ) : (
         <>
           {first && last && first !== last && (
             <p className="headline">
-              Accuracy went from {pct(first.accuracy)} with {first.version} to {pct(last.accuracy)} with {last.version}.
+              Accuracy went from {pct(first.accuracy)} with {first.version} to{" "}
+              {pct(last.accuracy)} with {last.version}.
               {jump &&
                 ` The biggest ${jump.delta >= 0 ? "jump" : "drop"} (${jump.delta >= 0 ? "+" : ""}${(jump.delta * 100).toFixed(0)} points) came from ${jump.to.version}: ${jump.to.change.charAt(0).toLowerCase()}${jump.to.change.slice(1)}.`}
             </p>
@@ -196,7 +233,10 @@ export default function EvalsPage() {
             </section>
           )}
 
-          <section className="evals-section" aria-label="Results for every question">
+          <section
+            className="evals-section"
+            aria-label="Results for every question"
+          >
             <PerQuestion runs={runs} />
           </section>
         </>
@@ -208,13 +248,16 @@ export default function EvalsPage() {
         </h2>
         <div className="prose">
           <p>
-            The gold SQL for each question runs against the same database the agent uses. The agent passes when the
-            rows from its final query hold the same values, ignoring column names. Extra columns are fine, numbers match
-            within 0.01, and row order counts only when the question asks for an order.
+            The gold SQL for each question runs against the same database the
+            agent uses. The agent passes when the rows from its final query hold
+            the same values, ignoring column names. Extra columns are fine,
+            numbers match within 0.01, and row order counts only when the
+            question asks for an order.
           </p>
           <p>
-            Every question names its vote threshold and, where needed, its tiebreak, so each one has exactly one correct
-            answer. A version that scores worse than the one before it stays in the table.
+            Every question names its vote threshold and, where needed, its
+            tiebreak, so each one has exactly one correct answer. A version that
+            scores worse than the one before it stays in the table.
           </p>
         </div>
       </section>
