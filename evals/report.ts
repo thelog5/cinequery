@@ -7,7 +7,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { AGENT_VERSIONS } from "../src/agent/versions";
 import { biggestJump, loadVersionRuns } from "../src/lib/eval-results";
-import { CATEGORIES, CATEGORY_LABELS, loadQuestions } from "./questions";
+import { loadQuestions } from "./questions";
 
 const START = "<!-- evals:start -->";
 const END = "<!-- evals:end -->";
@@ -17,23 +17,30 @@ function table(): string {
   const runs = loadVersionRuns();
   const total = loadQuestions().length;
   if (runs.length === 0) {
-    const rows = Object.values(AGENT_VERSIONS).map((v) => `| ${v.id} | ${v.change} | not run yet |`);
-    return [`_No eval runs recorded yet (${total} questions ready)._`, "", "| Version | Change | Score |", "|---|---|---|", ...rows].join("\n");
+    const rows = Object.values(AGENT_VERSIONS).map(
+      (v) => `| ${v.id} | ${v.change} | not run yet |`,
+    );
+    return [
+      `_No eval runs recorded yet (${total} questions ready)._`,
+      "",
+      "| Version | Change | Score |",
+      "|---|---|---|",
+      ...rows,
+    ].join("\n");
   }
 
-  const header = `| Version | Change | Overall | ${CATEGORIES.map((c) => CATEGORY_LABELS[c]).join(" | ")} | Tool calls | Median latency | Median cost |`;
-  const sep = `|---|---|---:|${CATEGORIES.map(() => "---:").join("|")}|---:|---:|---:|`;
+  const header =
+    "| Version | Change | Correct | Avg. tool calls | Median latency | Median API cost |";
+  const sep = "| --- | --- | ---: | ---: | ---: | ---: |";
   const rows = runs.map(
     (r) =>
-      `| ${r.version} | ${r.change} | **${pct(r.accuracy)}** (${r.passed}/${r.total}) | ${CATEGORIES.map((c) =>
-        r.by_category[c] ? pct(r.by_category[c].accuracy) : "–",
-      ).join(" | ")} | ${r.avg_tool_calls.toFixed(1)} | ${(r.median_latency_ms / 1000).toFixed(1)} s | $${r.median_cost_usd.toFixed(3)} |`,
+      `| ${r.version} | ${r.change} | **${pct(r.accuracy)}** (${r.passed}/${r.total}) | ${r.avg_tool_calls.toFixed(1)} | ${(r.median_latency_ms / 1000).toFixed(1)} s | $${r.median_cost_usd.toFixed(5)} |`,
   );
   const jump = biggestJump(runs);
   const notes = [
     `Model: ${runs.at(-1)?.model}, effort ${runs.at(-1)?.effort}. ${total} questions, 20 per category.`,
     jump
-      ? `Biggest single change: ${jump.from.version} → ${jump.to.version} (${jump.delta >= 0 ? "+" : ""}${(jump.delta * 100).toFixed(0)} points), from "${jump.to.change}".`
+      ? `Largest observed increase: ${jump.from.version} → ${jump.to.version} (${jump.delta >= 0 ? "+" : ""}${(jump.delta * 100).toFixed(0)} points), from "${jump.to.change}".`
       : "",
   ].filter(Boolean);
   return [header, sep, ...rows, "", ...notes].join("\n");

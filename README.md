@@ -1,177 +1,195 @@
 # Cinequery
 
-Ask movie questions in plain English. Get an answer, a chart, and the SQL behind it, from an agent whose accuracy is measured by a 100-question eval suite across four versions.
+**Ask questions about 49,466 IMDb films in plain English. An AI agent queries PostgreSQL and returns an answer, a chart, and the SQL behind it.**
 
-> "Which directors have made at least 6 films rated 8.0 or higher with at least 25,000 votes?"
-> → an answer in a sentence, a bar chart, the query it ran, and the rows.
+https://github.com/user-attachments/assets/5c0f0127-aef6-40b1-b16d-9d601e8364d1
 
-- **Live demo:** _coming soon_ (see [deploying](#deploying))
-- **Eval results:** [`/evals`](#eval-results) on the demo, and the table below
-- **Build log:** [`docs/PROGRESS.md`](docs/PROGRESS.md) records when each piece landed
+Built by [Logan Li](https://www.linkedin.com/in/logan-li-9089b7216/) · [Saved evaluation results](evals/results/) · [Deployment guide](docs/DEPLOYMENT.md)
 
-## Eval results
+## What it is
 
-<!-- evals:start -->
-| Version | Change | Overall | Single table | Joins | Aggregation | Name ambiguity | Trends over time | Tool calls | Median latency | Median cost |
-|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| v1 | list_tables, describe_table, run_query only | **77%** (77/100) | 80% | 65% | 80% | 80% | 80% | 4.3 | 5.3 s | $0.001 |
-| v2 | Column comments and sample rows in describe_table | **79%** (79/100) | 85% | 70% | 80% | 80% | 80% | 4.0 | 5.0 s | $0.001 |
-| v3 | Add search_people and search_titles | **77%** (77/100) | 90% | 55% | 85% | 80% | 75% | 3.7 | 4.8 s | $0.001 |
-| v4 | 3 worked examples in the system prompt | **82%** (82/100) | 90% | 70% | 85% | 85% | 80% | 2.9 | 4.6 s | $0.001 |
+Which Christopher Nolan film is rated highest? Are movies getting longer?
+Which directors have made six films rated 8.0 or better? Cinequery lets you
+ask those questions without writing a database query yourself.
 
-Model: claude-haiku-5-5, effort medium. 100 questions, 20 per category.
-Biggest single change: v3 → v4 (+5 points), from "3 worked examples in the system prompt".
-<!-- evals:end -->
+Type a question and click **Ask question**, or click an example card. The
+agent looks up the relevant films and people, writes SQL, and runs it against
+IMDb data. You can follow its tool calls as it works, then inspect the answer,
+chart, returned rows, and exact query.
 
-Each version changes exactly one thing, so each score delta has a single cause. If a version made things worse, it stays in the table.
+- **Compare:** ratings, genres, directors, and casts, with vote thresholds you choose.
+- **Explore trends:** average runtimes or ratings by year and decade.
+- **Check the evidence:** expand the SQL and rows instead of taking the answer on trust.
+- **See how it scores:** the Accuracy page shows all four agent versions on the same 100 questions, including every failed answer.
+
+The database contains feature films with at least 1,000 IMDb votes. It is a
+stored dataset, not a live IMDb search; it does not include streaming
+availability or personalized viewing history.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-  UI["Ask page<br/>(Next.js)"] -- "POST /api/ask<br/>NDJSON stream" --> API["API route<br/>rate limit + spend cap"]
-  API --> Agent["Agent loop<br/>Claude, ≤ 8 tool calls"]
-  Agent <-- "in-memory transport" --> MCP["MCP server<br/>5 tools"]
-  MCP -- "SELECT-only role<br/>5 s timeout, 200 rows" --> DB[("Postgres<br/>IMDb movies")]
-  Evals["Eval runner<br/>100 questions"] --> Agent
-  Evals -- "gold SQL" --> DB
-  Desktop["Claude Desktop /<br/>Claude Code"] -- stdio --> MCP
+  A[Question in plain English] --> B["Next.js API<br/>Rate and spending checks"]
+  B --> C[Claude Haiku agent]
+  C <-->|MCP tools| D[Find tables, films, and people]
+  D --> E[("Read-only PostgreSQL<br/>IMDb movie data")]
+  E --> C
+  C --> F[Answer, chart, rows, and SQL]
 ```
 
-1. **Data (R1).** `scripts/load-imdb.ts` streams IMDb's TSV dumps straight from `datasets.imdbws.com` through gunzip into Postgres. Nothing touches disk, so the 790 MB principals file needs no local space. It keeps feature films with at least 1,000 votes, then builds trigram and filter indexes. Every column has a `COMMENT` explaining its meaning and gotchas.
-2. **Tools via MCP (R2).** The agent never sees a schema dump. It calls tools on an MCP server (`src/mcp/server.ts`):
+1. **Data.** The loader filters IMDb's public datasets into four tables:
+   movies, ratings, people, and credits. The saved run used **49,466 films,
+   330,144 people, and 983,681 credits**. Column comments explain units,
+   missing values, and how to join the tables.
+2. **Discovery through MCP.** The agent can list tables, read their schemas,
+   search people and titles, and run SQL. It discovers the data through tools
+   rather than receiving the whole schema in the initial prompt.
+3. **A bounded agent loop.** Claude gets up to eight data-tool calls before
+   submitting an answer, SQL, and chart specification. A 90-second deadline
+   bounds the model loop.
+4. **Database-backed results.** The server runs the final SQL again. Those
+   rows supply the table, chart, and evaluation scorer; the model cannot
+   substitute invented rows for database output.
+5. **One server, two interfaces.** The site uses MCP in-process. The same
+   tools can run over stdio for a local MCP client. See [MCP setup](docs/MCP.md).
 
-   | Tool | Input | Returns |
-   |---|---|---|
-   | `list_tables` | none | Table names with one-line descriptions |
-   | `describe_table` | table | Columns, types, comments, 3 sample rows |
-   | `search_people` | name fragment | Top 5 matches with `nconst`, professions, known-for titles |
-   | `search_titles` | title fragment | Top 5 matches with `tconst`, year, rating |
-   | `run_query` | SQL | Rows (max 200), row count, execution time |
+## Results
 
-   The web app runs the server in-process over an in-memory transport. The same server runs over stdio for Claude Desktop or Claude Code.
-3. **Agent (R3).** `src/agent/run.ts` gives Claude at most 8 tool calls, then it calls `submit_answer` with `{answer, sql, chart}`. The server re-runs the submitted SQL, so the rows the user sees, and the rows the evals score, always come from the database, never from the model.
-4. **UI (R4, R10).** A question box, five example buttons, a live list of the agent's tool calls as they happen, then the answer, a Recharts chart, the rows, and a collapsible SQL block.
-5. **Evals (R5, R6, R9, R11).** `pnpm eval --version vN` runs all 100 questions and writes `evals/results/vN.json` with pass/fail, tool calls, tokens, cost, and latency per question. `/evals` and the README table read those files.
+Each version answered the same **100 questions**, with 20 each covering
+single-table queries, joins, aggregation, ambiguous names, and trends. We
+compare the agent's final database rows with a reference SQL query, allowing
+column names to differ and checking row order when the question requires it.
 
-### Agent versions
+<!-- evals:start -->
+| Version | Change | Correct | Avg. tool calls | Median latency | Median API cost |
+| --- | --- | ---: | ---: | ---: | ---: |
+| v1 | list_tables, describe_table, run_query only | **77%** (77/100) | 4.3 | 5.3 s | $0.00078 |
+| v2 | Column comments and sample rows in describe_table | **79%** (79/100) | 4.0 | 5.0 s | $0.00086 |
+| v3 | Add search_people and search_titles | **77%** (77/100) | 3.7 | 4.8 s | $0.00088 |
+| v4 | 3 worked examples in the system prompt | **82%** (82/100) | 2.9 | 4.6 s | $0.00093 |
 
-| Version | Change |
-|---|---|
-| v1 | `list_tables`, `describe_table` (names and types only), `run_query` |
-| v2 | `describe_table` adds column comments and 3 sample rows |
-| v3 | adds `search_people` and `search_titles` |
-| v4 | adds 3 worked examples to the system prompt (written so they don't overlap any eval question) |
+Model: claude-haiku-5-5, effort medium. 100 questions, 20 per category.
+Largest observed increase: v3 → v4 (+5 points), from "3 worked examples in the system prompt".
+<!-- evals:end -->
 
-### Safety (R7, R8)
+These are single-run results on the saved dataset, not a guarantee for every
+movie question. All 18 failures in v4 had the wrong number of result rows:
+17 returned too many, and one returned too few. They remain failures in the
+published scores.
 
-| Layer | What it stops |
-|---|---|
-| Postgres role `cinequery_reader` | SELECT on the four movie tables only; read-only transactions by default |
-| `BEGIN READ ONLY` + `SET LOCAL statement_timeout = 5s` per query | writes, and anything slower than 5 s, with a friendly message |
-| SQL guard (`src/lib/sql-guard.ts`) | anything but one SELECT/WITH; write/DDL keywords; `SELECT INTO`; `pg_sleep`, `pg_read_file` and friends |
-| `LIMIT 201` wrapper | more than 200 rows (truncation is reported) |
-| Per-IP limit | more than 10 questions per hour (`429` + `Retry-After`) |
-| Daily spend cap | new questions once today's model spend reaches `DAILY_SPEND_CAP_USD` (`503`) |
-| Anthropic console workspace limit | the hard monthly backstop |
+The v4 run cost approximately **$0.095**; all four versions together cost
+approximately **$0.37** in recorded API usage. Full per-question results,
+queries, category scores, timing, and token counts are saved in
+[`evals/results/`](evals/results/).
 
-`src/mcp/server.integration.test.ts` proves the acceptance criteria: `UPDATE`/`DROP`/`DELETE` attempts are rejected and row counts don't change, and a cross join is killed at 5 seconds.
+## Engineering highlights
 
-## Running locally
+- **Measured the changes, including regressions.** Schema comments and
+  sample rows raised the score from 77% to 79%. Adding name-search tools
+  scored 77% in its run. Three worked examples brought v4 to 82%, with
+  average tool calls falling from 4.3 in v1 to 2.9 in v4.
+- **The database enforces read-only access.** A dedicated reader role,
+  read-only transactions, a five-second statement timeout, and a 200-row
+  output limit sit behind the SQL guard. The guard also checks quoted
+  function names and rejects multi-statement queries.
+- **Limits hold under simultaneous requests.** Admission checks and inserts
+  share a transaction lock across server instances. Defaults are ten
+  questions per IP per hour and two in-flight questions globally. A $0.50
+  daily estimated-spend threshold complements the provider's account limit;
+  it is a soft cap because already-running calls can finish above it.
+- **Idle browsing does not query the database.** The homepage and Accuracy
+  page are static. Connections open on demand and idle sockets close after
+  five seconds. There are no background SQL pings, polling jobs, or automatic
+  evaluations to keep Neon awake.
+- **Production fails closed.** Missing request-accounting credentials, weak
+  IP salts, owner-role connection strings, or Neon URLs without SSL block
+  API requests. Input size, JSON shape, and browser origins are checked
+  before a database connection opens.
+- **94 tests**, including real PostgreSQL permission/timeout checks,
+  concurrent admission, idle connection closure and reconnection, and
+  malformed request handling. CI runs without production secrets or paid
+  model calls. Integration tests skip when a local database is absent.
 
-Requires Node 24, pnpm 10.27.0, and Postgres 16+ with `pg_trgm` (Postgres.app works).
+Security controls and their limitations are documented in
+[SECURITY.md](SECURITY.md). The recorded dependency audit found no known
+advisories; that is not a claim that the application has no vulnerabilities.
+
+## Built with
+
+TypeScript · Next.js · React · Claude Haiku 5.5 · Model Context Protocol ·
+PostgreSQL · Recharts · Tailwind CSS · Node.js
+
+## Status
+
+The demo above was recorded locally. The app is prepared for Vercel with a
+Neon PostgreSQL database; a public deployment URL has not been added yet.
+[Deployment steps](docs/DEPLOYMENT.md) cover migrating the existing dataset,
+setting up the restricted roles, and configuring the server-only secrets.
+
+The repository includes source code and saved evaluations. Database dumps,
+API keys, and local request history are not included. The included IMDb
+loader downloads a fresh dataset; preserving the exact evaluated dataset
+requires migrating the existing database instead.
+
+## Run it locally
+
+Requires **Node 24**, **pnpm 10.27.0**, and, for questions, PostgreSQL 16+ with
+`pg_trgm` and an Anthropic API key.
+
+Preview the interface without a database or model key:
 
 ```bash
-pnpm install
-cp .env.example .env            # fill in DATABASE_URL_ADMIN, passwords, ANTHROPIC_API_KEY
+pnpm install --frozen-lockfile
+cp .env.example .env
+pnpm dev                          # http://localhost:3100
+```
+
+To answer questions, create a fresh local database and fill in `.env` with
+its admin URL, separate reader/ops role passwords and connection strings,
+a private IP salt, and your Anthropic key. Then initialize it:
+
+```bash
 createdb cinequery
-
-pnpm db:load                    # ~3-10 min: download, filter, load, index
-pnpm db:ops                     # rate-limit / spend tables
-pnpm db:roles                   # cinequery_reader + cinequery_ops roles
-pnpm eval:check-gold            # all 100 gold queries should be healthy
-
-pnpm test                       # unit + integration tests (integration needs the DB)
-pnpm ask "Who directed Heat?"   # one question from the terminal, with the tool trace
-pnpm dev                        # http://localhost:3100
+pnpm db:load                      # downloads IMDb data; recreates the movie tables
+pnpm db:ops                       # request accounting and spending checks
+pnpm db:roles                     # restricted reader and ops roles
+pnpm eval:check-gold               # checks reference SQL; no model calls
+pnpm dev
 ```
 
-Loader flags: `--min-votes N` (default 1000), `--slim` (keep only directors, writers, and the top 5 billed cast: the PRD's fallback if the data outgrows Neon's free tier), `--unlogged` (no WAL, for a tight local disk), `--finish-only` (resume at the index step).
+Use `db:load` only for a fresh dataset. To retain the data behind the saved
+scores, follow the [migration guide](docs/DEPLOYMENT.md) instead.
 
-## Deploying
-
-Follow the [complete Neon → Vercel deployment steps](docs/DEPLOYMENT.md), including the exact database migration commands and environment-variable table.
-
-1. Create a **Neon Free** project with a fixed 0.25 CU compute and scale to zero enabled. Copy the existing movie dataset with `pg_dump`/`pg_restore` into an empty target, so the saved accuracy results still describe the data. Initialize the ops schema and least-privilege reader/ops roles with local-only admin credentials.
-2. Import the reviewed GitHub repository into **Vercel**, using Node 24, `pnpm install --frozen-lockfile`, and `pnpm build`. Do not run data loading or evaluations in a build.
-3. Set the pooled SSL reader/ops URLs, model API key, private IP salt, and spending/rate limits as server-only Production variables. Never deploy the owner database URL or setup passwords. Keep Preview credentials isolated from Production.
-4. Add the included Vercel Firewall protections for `/api/ask`, verify a question deliberately, and confirm Neon suspends after idle time. Browsing the static homepage or saved Accuracy page does not query the database.
-
-See [Neon idle-compute behavior](docs/NEON.md) and [security controls and limitations](SECURITY.md). Original code is [MIT-licensed](LICENSE); [third-party terms](THIRD_PARTY_NOTICES.md) apply separately, including IMDb's non-commercial data terms.
-
-## Using the MCP server in Claude Code or Claude Desktop
+Run the checks:
 
 ```bash
-claude mcp add cinequery -- pnpm --dir /path/to/cinequery mcp
+pnpm test
+pnpm build
 ```
 
-For Claude Desktop, add to `claude_desktop_config.json`:
+`pnpm eval --version v4` runs the 100-question evaluation and makes paid model
+calls. `pnpm eval:report` updates the results table above from the saved JSON
+without calling the model. Deployment builds run neither command.
 
-```json
-{
-  "mcpServers": {
-    "cinequery": {
-      "command": "pnpm",
-      "args": ["--dir", "/path/to/cinequery", "mcp"],
-      "env": { "DATABASE_URL_READONLY": "postgres://cinequery_reader:...@.../cinequery" }
-    }
-  }
-}
-```
+## Repository layout
 
-`CINEQUERY_AGENT_VERSION=v1` exposes the v1 toolset instead of all five tools.
+| Path | Contents |
+| --- | --- |
+| [`src/app/`](src/app/) | Ask page, Accuracy page, and streaming question API |
+| [`src/components/`](src/components/) | Question form, live tool trace, charts, SQL, and result tables |
+| [`src/agent/`](src/agent/) | Agent loop, prompts, four versions, and estimated token costs |
+| [`src/mcp/`](src/mcp/) | MCP tools, in-memory server, and stdio entry point |
+| [`src/lib/`](src/lib/) | Database access, SQL guard, admission controls, and request validation |
+| [`db/`](db/) | Movie schema, indexes, and request-accounting schema |
+| [`evals/`](evals/) | Questions, reference SQL, scorer, runner, and saved results |
+| [`scripts/`](scripts/) | IMDb loader, role setup, terminal questions, and evaluation helpers |
+| [`docs/`](docs/) | [Deployment](docs/DEPLOYMENT.md), [Neon idle behavior](docs/NEON.md), [MCP setup](docs/MCP.md), and [build log](docs/PROGRESS.md) |
 
-## Evals
+## License
 
-Questions live in `evals/questions.jsonl`, one per line:
-
-```json
-{"id": "j12", "category": "joins", "question": "Which director has directed Robert De Niro in the most movies?", "gold_sql": "SELECT p.name FROM ...", "ordered": false}
-```
-
-There are 100 questions, 20 in each category: single table, joins, aggregation, name ambiguity (e.g. "How many movies has Nolan directed?" must resolve to Christopher Nolan), and trends over time. The five example buttons on the ask page are eval questions too, and a test keeps the two lists in sync.
-
-**Scoring** (`evals/score.ts`): the gold SQL runs against the same database. The agent passes when its final query's values match the gold values, ignoring column names. Extra columns are allowed, numbers match within 0.01, and order matters only when `ordered` is true. Every question states its vote threshold and, where needed, its tiebreak. `pnpm eval:check-gold` flags empty results, results over 200 rows, and ties at a `LIMIT` cutoff.
-
-```bash
-pnpm eval --version v1                         # full run -> evals/results/v1.json
-pnpm eval --version v3 --category joins        # partial run -> evals/results/scratch/
-pnpm eval --version v4 --model claude-opus-5-5     # second model -> v4.claude-opus-5-5.json
-pnpm eval:all                                  # v1-v4, then refresh the README table
-```
-
-## Numbers
-
-| Metric | Result |
-|---|---|
-| Movies and credits loaded | 49,466 movies, 330,144 people, 983,681 credits (full load, 1,000+ votes) |
-| Eval questions | 100 (20 × 5 categories) |
-| Accuracy v1 to final | 77% → 82% (100 questions each, Haiku 5.5) |
-| Biggest single jump and what caused it | v3 → v4: +5 points; 3 worked examples in the system prompt |
-| Median latency and cost per question | v4: 4.6 s · $0.00093 |
-
-## Project layout
-
-```
-db/            schema.sql, indexes.sql, ops.sql
-scripts/       load-imdb.ts, setup-roles.ts, ask.ts, run-all-evals.sh
-src/mcp/       MCP server factory + stdio entry
-src/agent/     versions, prompt, agent loop, pricing
-src/lib/       read-only DB runner, SQL guard, tools, abuse controls
-src/app/       ask page, /evals page, POST /api/ask
-evals/         questions.jsonl, scorer, runner, gold checker, results/
-```
-
-## Credits
-
-Movie data courtesy of [IMDb](https://www.imdb.com), from the [IMDb non-commercial datasets](https://developer.imdb.com/non-commercial-datasets/), used for personal, non-commercial purposes. Built with Claude, the Model Context Protocol TypeScript SDK, Next.js, Recharts, and PostgreSQL.
+Original code is under the [MIT License](LICENSE). IMDb data retains its
+[non-commercial dataset terms](https://developer.imdb.com/non-commercial-datasets/).
+Photographs, the Interstellar still, and fonts retain their respective rights
+and are not covered by the code license. See [third-party notices](THIRD_PARTY_NOTICES.md).
+Cinequery is not affiliated with IMDb or TMDB.

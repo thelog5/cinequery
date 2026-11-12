@@ -22,6 +22,8 @@ These illustrative photographs were downloaded on 2026-11-12 under the [Unsplash
 
 `public/images/interstellar.jpg` is an Interstellar film still sourced from [TMDB](https://image.tmdb.org/t/p/original/xJHokMbljvjADYdit5fK5VQsXEG.jpg). It is third-party film imagery, not covered by the MIT or Unsplash licenses. Rights remain with their respective holders; a separate redistribution permission has not been established.
 
+The README demo is a screen recording of Cinequery and includes this third-party imagery. Its inclusion does not change the underlying image rights.
+
 ## Fonts and packages
 
 Newsreader and JetBrains Mono are provided through `next/font/google` under the SIL Open Font License. Copies of their copyright and license notices are included in `public/licenses/newsreader-OFL.txt` and `public/licenses/jetbrains-mono-OFL.txt`. Dependency license files remain with their upstream distributions. The pnpm lockfile records the package versions used. Third-party trademarks belong to their respective owners; no endorsement is implied.
